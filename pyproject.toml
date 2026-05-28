@@ -1,0 +1,37 @@
+[project]
+name = "comet"
+version = "0.1.0"
+description = "Stremio's fastest torrent/debrid search add-on."
+authors = [
+    { name = "Goldy", email = "153996346+g0ldyy@users.noreply.github.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "aiohttp",
+    "aiosqlite",
+    "asyncio",
+    "asyncpg",
+    "bencode-py",
+    "curl-cffi",
+    "databases",
+    "demagnetize",
+    "fastapi",
+    "gunicorn",
+    "jinja2",
+    "loguru",
+    "mediaflow-proxy==2.4.1",
+    "orjson",
+    "pydantic-settings",
+    "python-multipart",
+    "uvicorn",
+    "xxhash",
+    "cryptography",
+    "websockets",
+    "msgpack",
+    "miniupnpc",
+    "aiofiles",
+    "torrent-parse-rank",
+]
+
+[tool.uv.sources]
+torrent-parse-rank = { git = "https://github.com/g0ldyy/torrent-parse-rank" }

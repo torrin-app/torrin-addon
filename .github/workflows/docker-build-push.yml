@@ -1,0 +1,36 @@
+name: Docker Build and Push
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push-release:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development'
+    uses: ./.github/workflows/docker-build-common.yml
+    with:
+      push-to-dockerhub: true
+      tags: |
+        type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+        type=raw,value=dev,enable=${{ github.ref == 'refs/heads/development' }}
+        type=ref,event=branch
+      build-args: |
+        COMET_BRANCH=${{ github.ref_name }}
+    secrets:
+      dockerhub_username: ${{ secrets.DOCKER_HUB_USERNAME }}
+      dockerhub_access_token: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+  build-and-push-branch:
+    if: github.ref != 'refs/heads/main' && github.ref != 'refs/heads/development'
+    uses: ./.github/workflows/docker-build-common.yml
+    with:
+      tags: |
+        type=ref,event=branch
+        type=sha,prefix=sha-
+      build-args: |
+        COMET_BRANCH=${{ github.ref_name }}
