@@ -25,7 +25,7 @@ router = APIRouter()
 async def manifest(request: Request, b64config: str = None):
     base_manifest = {
         "id": settings.ADDON_ID,
-        "description": "Stremio's fastest torrent/debrid search add-on.",
+        "description": "Open-source debrid service with instant streaming.",
         "version": "2.0.0",
         "catalogs": [],
         "resources": [
@@ -36,9 +36,10 @@ async def manifest(request: Request, b64config: str = None):
             }
         ],
         "types": ["movie", "series", "anime", "other"],
-        "logo": "https://raw.githubusercontent.com/g0ldyy/comet/refs/heads/main/comet/assets/icon.png",
-        "background": "https://raw.githubusercontent.com/g0ldyy/comet/refs/heads/main/comet/assets/background.png",
+        "logo": "https://raw.githubusercontent.com/torrin-app/torrin/main/assets/logo.png",
+        "background": "https://raw.githubusercontent.com/torrin-app/torrin/main/assets/torrin-banner.png",
         "behaviorHints": {"configurable": True, "configurationRequired": False},
+        "stremioAddonsConfig": {"issuer": "https://stremio-addons.net", "signature": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0..xoLnpFy95lq58TTeR3ouDA.A8nVRc41YL-gRbDlHKToHfKAfwUA30y-xNtYw7TzCZmvlvlx-qKJhfLJjv9NdwxFoebRoFQr4cQk-FaZ1ezEsQLL_osBg75zcENaouLD5iwRvsR-3Q6kL_QOMFCkMPsV.71C1sjMlc0IG18_h3n6s1g"},
     }
 
     config = config_check(b64config, strict_b64config=True)

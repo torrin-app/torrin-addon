@@ -1,22 +1,31 @@
-# Torrin Stremio Addon
+# Torrin Stremio Addon (Reference Fork)
 
-> **Fork Notice:** This is a fork of [Comet](https://github.com/g0ldyy/comet) by [g0ldyy](https://github.com/g0ldyy), licensed under GPL-3.0.
+This is a fork of [Comet](https://github.com/g0ldyy/comet) adapted to use Torrin as its debrid backend. It is published here as a **reference implementation for addon developers and self-hosters** who want to integrate their own Torrin instance with Stremio.
 
-Stremio addon for [Torrin](https://github.com/torrin-app/torrin), an open-source debrid service.
+> **Casual users:** You do not need to run this. Use the managed addon hosted by [ElfHosted](https://elfhosted.com) instead. It is pre-configured and requires no setup.
 
-## Setup
+## Who this is for
+
+- Developers building Stremio addons who want Torrin as a debrid/cache backend
+- Self-hosters running their own Torrin instance who want a standalone addon server
+
+## Managed option (no self-hosting needed)
+
+ElfHosted maintains a hosted version. See their docs for setup instructions.
+
+## Self-hosting
 
 1. Go to [torrin.app](https://torrin.app) and create an account
-2. Go to [addon.torrin.app/configure](https://addon.torrin.app/configure)
-3. Enter your API key
-4. Click Install
+2. Deploy this addon pointed at your Torrin instance
+3. Configure your API key
 
 ## Links
 
-- Website: https://torrin.app
+- Torrin: https://torrin.app
 - Main repo: https://github.com/torrin-app/torrin
 - Discord: https://discord.gg/XzFQkZQqU
+- Upstream Comet: https://github.com/g0ldyy/comet
 
 ## License
 
-GPL-3.0 -- same as upstream Comet. See [LICENSE](LICENSE).
+GPL-3.0, same as upstream Comet. See [LICENSE](LICENSE).

@@ -1115,6 +1115,23 @@ async def stream(
         except Exception as e:
             logger.warning(f"IPTV injection failed: {e}")
 
+    # Inject cached usenet content (fast DB lookup, no indexer needed).
+    if debrid_entries and settings.STREMTHRU_URL:
+        try:
+            from comet.services.usenet import get_cached_usenet
+            api_key = debrid_entries[0].get("apiKey", "")
+            cached = await get_cached_usenet(session, id, api_key)
+            for c in cached:
+                usenet_stream = {
+                    "name": _stream_notice_name(kodi, "[Torrin⚡]", "[⚡] Torrin Usenet"),
+                    "description": c.get("name", "") or c.get("file_name", ""),
+                    "url": c.get("signed_url", ""),
+                    "behaviorHints": {"notWebReady": c.get("file_name", "").endswith(".mkv")},
+                }
+                final_streams.insert(0, usenet_stream)
+        except Exception as e:
+            logger.warning(f"Usenet cache check failed: {e}")
+
     has_results = len(final_streams) > 0
 
     return _stream_response(
