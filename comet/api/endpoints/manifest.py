@@ -39,7 +39,7 @@ async def manifest(request: Request, b64config: str = None):
         "logo": "https://raw.githubusercontent.com/torrin-app/torrin/main/assets/logo.png",
         "background": "https://raw.githubusercontent.com/torrin-app/torrin/main/assets/torrin-banner.png",
         "behaviorHints": {"configurable": True, "configurationRequired": False},
-        "stremioAddonsConfig": {"issuer": "https://stremio-addons.net", "signature": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0..xoLnpFy95lq58TTeR3ouDA.A8nVRc41YL-gRbDlHKToHfKAfwUA30y-xNtYw7TzCZmvlvlx-qKJhfLJjv9NdwxFoebRoFQr4cQk-FaZ1ezEsQLL_osBg75zcENaouLD5iwRvsR-3Q6kL_QOMFCkMPsV.71C1sjMlc0IG18_h3n6s1g"},
+        "stremioAddonsConfig": {"issuer": "https://stremio-addons.net", "signature": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0..pacLbjk6PCw-rGbAKxABMw.9tB9oPOHrlU8K4CaFVStwG61osNaAi5sLj8G2UfMaSaSwyWIUTCWsoHkcSj5H1m-GKEO7f1gaXmV06JL3FYugBc592VrbLAVRYiEDHr5Bn6qWkvqsSSAfUJvS3_zGmGw._4xMu0_SKXHCVG616u41mw"},
     }
 
     config = config_check(b64config, strict_b64config=True)
