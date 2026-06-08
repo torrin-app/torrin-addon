@@ -32,7 +32,7 @@ permissions:
   packages: write
 
 env:
-  IMAGE_NAME: g0ldyy/comet
+  IMAGE_NAME: torrin-app/torrin-addon
 
 jobs:
   build-and-push:
