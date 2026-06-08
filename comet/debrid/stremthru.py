@@ -314,6 +314,24 @@ class StremThru:
 
                     files.append(file_info)
                 else:
+                    # Acceleratable items have no files - create a placeholder entry.
+                    if hash in acceleratable_hashes and len(torrent.get("files", [])) == 0:
+                        file_info = {
+                            "info_hash": hash,
+                            "index": None,
+                            "title": None,
+                            "size": None,
+                            "season": None,
+                            "episode": None,
+                            "parsed": None,
+                            "seeders": seeders,
+                            "tracker": tracker,
+                            "sources": sources,
+                            "cache_tier": "acceleratable",
+                        }
+                        files.append(file_info)
+                        continue
+
                     for file in torrent["files"]:
                         filename = file["name"].split("/")[-1]
 
