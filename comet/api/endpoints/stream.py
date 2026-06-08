@@ -329,7 +329,8 @@ async def check_multi_service_availability(
                 continue
             service, cached_hashes = result
             for info_hash in cached_hashes:
-                service_cache_status[info_hash][service] = True
+                if info_hash not in service_cache_status or service_cache_status[info_hash].get(service) != "cached":
+                    service_cache_status[info_hash][service] = True
 
     return service_cache_status
 
@@ -1000,7 +1001,7 @@ async def stream(
                 continue
 
             behavior_hints = {
-                "bingeGroup": f"comet|{service}|{info_hash}",
+                "bingeGroup": f"torrin|{info_hash}",
                 "filename": rtn_data.raw_title,
             }
             if torrent_size is not None:
@@ -1008,14 +1009,25 @@ async def stream(
             if kodi_meta is not None:
                 behavior_hints["cometKodiMetaV1"] = kodi_meta
 
+            cache_tier = torrent.get("cache_tier", "")
+            if is_cached and cache_tier == "acceleratable":
+                stream_icon = "⏩"
+                stream_status = "A"
+            elif is_cached:
+                stream_icon = "⚡"
+                stream_status = "C"
+            else:
+                stream_icon = "🧲"
+                stream_status = "U"
+
             stream_name = _build_stream_name(
                 kodi,
                 debrid_extension,
                 rtn_data.resolution,
-                icon="⚡" if is_cached else "⬇️",
+                icon=stream_icon,
                 formatted_components=formatted_components,
                 seeders=torrent["seeders"],
-                status="C" if is_cached else "U",
+                status=stream_status,
             )
 
             the_stream = {
@@ -1053,7 +1065,7 @@ async def stream(
                 continue
 
             behavior_hints = {
-                "bingeGroup": f"comet|torrent|{info_hash}",
+                "bingeGroup": f"torrin|{info_hash}",
                 "filename": rtn_data.raw_title,
             }
             if torrent_size is not None:

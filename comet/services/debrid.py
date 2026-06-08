@@ -124,6 +124,10 @@ class DebridService:
                 if torrent is None:
                     continue
 
+                # Track cache tier (cached = on R2, acceleratable = on a provider).
+                if "cache_tier" in file:
+                    torrent["cache_tier"] = file["cache_tier"]
+
                 merged_parsed = self._merge_parsed(
                     torrent.get("parsed"), file["parsed"]
                 )

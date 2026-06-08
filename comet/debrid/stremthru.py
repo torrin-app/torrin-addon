@@ -24,7 +24,7 @@ def batch_parse(filenames):
 
 
 class StremThru:
-    _MAGNET_READY_STATUSES: frozenset[str] = frozenset({"cached", "downloaded"})
+    _MAGNET_READY_STATUSES: frozenset[str] = frozenset({"cached", "downloaded", "acceleratable"})
     _MAGNET_PENDING_STATUSES: frozenset[str] = frozenset(
         {"queued", "downloading", "processing", "uploading"}
     )
@@ -282,10 +282,13 @@ class StremThru:
 
         files = []
         cached_count = 0
+        acceleratable_hashes = set()
         for result in availability:
             for torrent in result:
-                if torrent["status"] != "cached":
+                if torrent["status"] not in ("cached", "acceleratable"):
                     continue
+                if torrent["status"] == "acceleratable":
+                    acceleratable_hashes.add(torrent["hash"])
 
                 cached_count += 1
                 hash = torrent["hash"]
@@ -306,6 +309,7 @@ class StremThru:
                         "season": None,
                         "episode": None,
                         "parsed": None,
+                        "cache_tier": "acceleratable" if hash in acceleratable_hashes else "cached",
                     }
 
                     files.append(file_info)
@@ -357,6 +361,7 @@ class StremThru:
                             "seeders": seeders,
                             "tracker": tracker,
                             "sources": sources,
+                            "cache_tier": "acceleratable" if hash in acceleratable_hashes else "cached",
                         }
 
                         files.append(file_info)
