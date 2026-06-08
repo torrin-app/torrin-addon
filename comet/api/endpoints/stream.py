@@ -658,6 +658,7 @@ async def stream(
     sort_mixed = is_torrent_only or config["sortCachedUncachedTogether"]
     account_snapshot_ready = False
     cached_results = []
+    acceleratable_results = []
     non_cached_results = []
 
     def _wait_response():
@@ -1055,6 +1056,8 @@ async def stream(
 
             if sort_mixed:
                 cached_results.append(the_stream)
+            elif is_cached and cache_tier == "acceleratable":
+                acceleratable_results.append(the_stream)
             elif is_cached:
                 cached_results.append(the_stream)
             else:
@@ -1103,9 +1106,9 @@ async def stream(
             cached_results.append(the_stream)
 
     if sort_mixed:
-        final_streams = cached_results
+        final_streams = cached_results + acceleratable_results + non_cached_results
     else:
-        final_streams = cached_results + non_cached_results
+        final_streams = cached_results + acceleratable_results + non_cached_results
 
     # Inject IPTV cached streams.
     if debrid_entries and settings.STREMTHRU_URL:
