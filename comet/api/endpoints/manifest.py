@@ -44,7 +44,7 @@ async def manifest(request: Request, b64config: str = None):
 
     config = config_check(b64config, strict_b64config=True)
     if not config:
-        base_manifest["name"] = "❌ | Comet"
+        base_manifest["name"] = f"❌ | {settings.ADDON_NAME}"
         base_manifest["description"] = (
             f"⚠️ OBSOLETE CONFIGURATION, PLEASE RE-CONFIGURE ON {request.url.scheme}://{request.url.netloc} ⚠️"
         )

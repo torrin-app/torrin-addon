@@ -988,6 +988,11 @@
             help-text="Remove all trash from results (if disabled, your filters will not be applied - Adult Content, CAM, Clean Audio, PDTV, R5, Screener, Size, Telecine and Telesync)"
             >Remove Trash</sl-checkbox
           >
+          <sl-checkbox
+            id="showSeasonPacks"
+            help-text="When watching a single episode, also show season packs and multi-season packs in results. The correct episode file will be selected automatically."
+            >Show Season Packs</sl-checkbox
+          >
           <sl-select
             id="resultFormat"
             multiple
@@ -1271,6 +1276,7 @@
             const cachedOnly = document.getElementById("cachedOnly").checked;
             const sortCachedUncachedTogether = document.getElementById("sortCachedUncachedTogether").checked;
             const removeTrash = document.getElementById("removeTrash").checked;
+            const showSeasonPacks = document.getElementById("showSeasonPacks").checked;
             const allowEnglishInLanguages = document.getElementById("allowEnglishInLanguages").checked;
             const removeUnknownLanguages = document.getElementById("removeUnknownLanguages").checked;
             const resultFormat = Array.from(document.getElementById("resultFormat").selectedOptions).map(option => option.value);
@@ -1292,6 +1298,7 @@
               cachedOnly: cachedOnly,
               sortCachedUncachedTogether: sortCachedUncachedTogether,
               removeTrash: removeTrash,
+              showSeasonPacks: showSeasonPacks,
               resultFormat: selectedResultFormat,
               debridServices: debridServices,
               enableTorrent: enableTorrent,
@@ -1577,6 +1584,8 @@
               document.getElementById("sortCachedUncachedTogether").checked = settings.sortCachedUncachedTogether;
             if (settings.removeTrash !== null)
               document.getElementById("removeTrash").checked = settings.removeTrash;
+            if (settings.showSeasonPacks)
+              document.getElementById("showSeasonPacks").checked = settings.showSeasonPacks;
             if (settings.maxResultsPerResolution !== null)
               document.getElementById("maxResultsPerResolution").value = settings.maxResultsPerResolution;
             if (settings.maxSize !== null)

@@ -1015,6 +1015,7 @@ class ConfigModel(BaseModel):
     cachedOnly: Optional[bool] = False
     sortCachedUncachedTogether: Optional[bool] = False
     removeTrash: Optional[bool] = True
+    showSeasonPacks: Optional[bool] = False
     resultFormat: Optional[List[str]] = ["all"]
     maxResultsPerResolution: Optional[int] = 0
     maxSize: Optional[float] = 0

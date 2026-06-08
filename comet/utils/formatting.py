@@ -223,7 +223,7 @@ _STYLE_EMOJI = {
     "seeders": "👤 {}",
     "size": "💾 {}",
     "tracker": "🔎 {}",
-    "tracker_clean": "🔎 Comet|{}",
+    "tracker_clean": "🔎 {}",
     "languages": None,
 }
 
@@ -236,7 +236,7 @@ _STYLE_PLAIN = {
     "seeders": "Seeders: {}",
     "size": "Size: {}",
     "tracker": "Source: {}",
-    "tracker_clean": "Source: Comet|{}",
+    "tracker_clean": "Source: {}",
     "languages": "Languages: {}",
 }
 
@@ -283,7 +283,7 @@ def _get_formatted_components(
         components["size"] = style["size"].format(format_bytes(size))
 
     if (has_all or "tracker" in result_format) and tracker:
-        if comet_clean_tracker and tracker[:6] == "Comet|":
+        if comet_clean_tracker and "|" in tracker:
             components["tracker"] = style["tracker_clean"].format(
                 tracker.rsplit("|", 1)[-1]
             )

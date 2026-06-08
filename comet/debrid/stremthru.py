@@ -174,13 +174,13 @@ class StremThru:
             if "data" not in user:
                 raise DebridAuthError(
                     self.store_name,
-                    f"{self.store_name}: Invalid API key.\nPlease check your configuration.",
+                    f"Invalid API key.\nPlease check your configuration.",
                 )
 
             if user["data"]["subscription_status"] != "premium":
                 raise DebridAuthError(
                     self.store_name,
-                    f"{self.store_name}: No active subscription.\nPlease renew your debrid account.",
+                    f"No active subscription.\nPlease check your account.",
                 )
         except DebridAuthError:
             raise

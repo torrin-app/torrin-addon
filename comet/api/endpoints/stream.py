@@ -95,7 +95,7 @@ def _build_stream_name(
     status: str = "",
 ):
     if not kodi:
-        return f"[{service}{icon}] Comet {resolution}"
+        return f"[{service}{icon}] Torrin {resolution}"
 
     prefix = f"[{f'{service} {status}'.strip()}] {resolution}"
 
@@ -160,6 +160,7 @@ def _episode_matching_policy(
     cached_only: bool,
     has_debrid: bool,
     enable_torrent: bool,
+    show_season_packs: bool = False,
 ) -> tuple[bool, bool]:
     is_imdb_episode_request = (
         media_type == "series"
@@ -169,9 +170,8 @@ def _episode_matching_policy(
     )
     allow_debrid_verified_season_packs = (
         is_imdb_episode_request
-        and cached_only
         and has_debrid
-        and not enable_torrent
+        and show_season_packs
     )
     reject_unknown_episode_files = (
         is_imdb_episode_request and not allow_debrid_verified_season_packs
@@ -441,7 +441,7 @@ async def stream(
         error_response = {
             "streams": [
                 {
-                    "name": _stream_notice_name(kodi, "[❌] Comet", "[ERROR] Comet"),
+                    "name": _stream_notice_name(kodi, "[❌] Torrin", "[ERROR] Torrin"),
                     "description": (
                         f"OBSOLETE CONFIGURATION, PLEASE RE-CONFIGURE ON {request.url.scheme}://{request.url.netloc}"
                         if kodi
@@ -497,7 +497,7 @@ async def stream(
                     "streams": [
                         {
                             "name": _stream_notice_name(
-                                kodi, "[🚫] Comet", "[BLOCKED] Comet"
+                                kodi, "[🚫] Torrin", "[BLOCKED] Torrin"
                             ),
                             "description": "Content not digitally released yet.",
                             "url": "https://comet.feels.legal",
@@ -517,7 +517,7 @@ async def stream(
             {
                 "streams": [
                     {
-                        "name": _stream_notice_name(kodi, "[⚠️] Comet", "[WARN] Comet"),
+                        "name": _stream_notice_name(kodi, "[⚠️] Torrin", "[WARN] Torrin"),
                         "description": "Unable to get metadata.",
                         "url": "https://comet.feels.legal",
                     }
@@ -594,6 +594,7 @@ async def stream(
             cached_only=bool(config["cachedOnly"]),
             has_debrid=bool(debrid_entries),
             enable_torrent=enable_torrent,
+            show_season_packs=bool(config.get("showSeasonPacks", False)),
         )
     )
     target_air_date = None
@@ -667,7 +668,7 @@ async def stream(
             {
                 "streams": [
                     {
-                        "name": _stream_notice_name(kodi, "[🔄] Comet", "[INFO] Comet"),
+                        "name": _stream_notice_name(kodi, "[🔄] Torrin", "[INFO] Torrin"),
                         "description": "Scraping in progress, please try again in a few seconds...",
                         "url": "https://comet.feels.legal",
                     }
@@ -688,7 +689,7 @@ async def stream(
     if cache_result.should_show_first_search_message:
         cached_results.append(
             {
-                "name": _stream_notice_name(kodi, "[🔄] Comet", "[INFO] Comet"),
+                "name": _stream_notice_name(kodi, "[🔄] Torrin", "[INFO] Torrin"),
                 "description": "First search for this media - More results will be available in a few seconds...",
                 "url": "https://comet.feels.legal",
             }
@@ -902,7 +903,7 @@ async def stream(
     ):
         cached_results.append(
             {
-                "name": _stream_notice_name(kodi, "[⚠️] Comet", "[WARN] Comet"),
+                "name": _stream_notice_name(kodi, "[⚠️] Torrin", "[WARN] Torrin"),
                 "description": "Debrid Stream Proxy Password incorrect.\nStreams will not be proxied.",
                 "url": "https://comet.feels.legal",
             }
@@ -934,9 +935,9 @@ async def stream(
             cached_results.append(
                 {
                     "name": (
-                        f"[{debrid_extension}] Comet Sync"
+                        f"[{debrid_extension}] Torrin Sync"
                         if kodi
-                        else f"[{debrid_extension}🔄] Comet Sync"
+                        else f"[{debrid_extension}🔄] Torrin Sync"
                     ),
                     "description": (
                         "Sync debrid account library now.\n"

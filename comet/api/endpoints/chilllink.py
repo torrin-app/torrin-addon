@@ -32,7 +32,7 @@ async def chilllink_manifest(request: Request, b64config: str = None):
         "supported_endpoints": {"feeds": None, "streams": "/streams"},
         "name": build_addon_name(settings.ADDON_NAME, config)
         if config
-        else "❌ | Comet",
+        else f"❌ | {settings.ADDON_NAME}",
     }
 
     if not config:
@@ -70,7 +70,7 @@ async def chilllink_streams(
             "sources": [
                 {
                     "id": "comet.fast",
-                    "title": "Configuration is invalid. Please reconfigure Comet.",
+                    "title": "Configuration is invalid. Please reconfigure the addon.",
                     "url": "https://comet.feels.legal",
                     "metadata": [],
                 }
@@ -84,7 +84,7 @@ async def chilllink_streams(
             "sources": [
                 {
                     "id": "comet.fast",
-                    "title": "You need to configure a debrid service to use Comet in Chillio.",
+                    "title": "You need to configure a debrid service to use this addon in Chillio.",
                     "url": "https://comet.feels.legal",
                     "metadata": [],
                 }
