@@ -1021,10 +1021,16 @@ async def stream(
                 stream_icon = "🧲"
                 stream_status = "U"
 
+            # Detect season pack: has season but no episode in parsed data.
+            is_season_pack = (
+                rtn_data.seasons and not rtn_data.episodes
+            ) if hasattr(rtn_data, "seasons") and hasattr(rtn_data, "episodes") else False
+            pack_label = " 📦" if is_season_pack else ""
+
             stream_name = _build_stream_name(
                 kodi,
                 debrid_extension,
-                rtn_data.resolution,
+                rtn_data.resolution + pack_label,
                 icon=stream_icon,
                 formatted_components=formatted_components,
                 seeders=torrent["seeders"],
