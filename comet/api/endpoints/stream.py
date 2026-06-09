@@ -824,12 +824,6 @@ async def stream(
     needs_debrid_check = (
         total_count > 0
         and debrid_entries
-        and (
-            (not cache_result.has_cached_torrents and not use_account_scrape)
-            or total_verified_cached_count == 0
-            or (total_verified_cached_count / total_count)
-            < settings.DEBRID_CACHE_CHECK_RATIO
-        )
     )
 
     debrid_errors = {}
@@ -1010,13 +1004,16 @@ async def stream(
             if kodi_meta is not None:
                 behavior_hints["cometKodiMetaV1"] = kodi_meta
 
+            # Determine icon based on cache_tier or is_cached.
+            # cache_tier is set by live StremThru check: "cached" = R2, "acceleratable" = debrid provider.
+            # If no cache_tier but is_cached, it came from Comet's local DB = previously confirmed by debrid = ⏩.
             cache_tier = torrent.get("cache_tier", "")
-            if is_cached and cache_tier == "acceleratable":
-                stream_icon = "⏩"
-                stream_status = "A"
-            elif is_cached:
+            if is_cached and cache_tier == "cached":
                 stream_icon = "⚡"
                 stream_status = "C"
+            elif is_cached:
+                stream_icon = "⏩"
+                stream_status = "A"
             else:
                 stream_icon = "🧲"
                 stream_status = "U"
