@@ -457,8 +457,7 @@ async def stream(
     debrid_entries = config["_debridEntries"]
     enable_torrent = config["_enableTorrent"]
     deduplicate_streams = config["deduplicateStreams"]
-    scrape_debrid_account_torrents = config["scrapeDebridAccountTorrents"]
-    use_account_scrape = bool(debrid_entries and scrape_debrid_account_torrents)
+    use_account_scrape = bool(debrid_entries)
     response_cache_policy = CachePolicies.no_cache() if use_account_scrape else None
 
     def _stream_response(content: dict, is_empty: bool = False):
@@ -737,7 +736,7 @@ async def stream(
 
     service_cache_status = defaultdict(dict)
     verified_service_cache_status = defaultdict(dict)
-    show_account_sync_trigger = use_account_scrape
+    show_account_sync_trigger = False
     if use_account_scrape:
         if not account_snapshot_ready:
             await ensure_account_snapshot_ready(session, debrid_entries, ip)

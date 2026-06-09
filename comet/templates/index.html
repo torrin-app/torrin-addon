@@ -630,11 +630,6 @@
           >Deduplicate Streams</sl-checkbox
         >
 
-        <sl-checkbox
-          id="scrapeDebridAccountTorrents"
-          help-text="Scrape torrents directly from your debrid account library."
-          >Scrape Debrid Account Torrents</sl-checkbox
-        >
       </sl-details>
 
       <style>
@@ -1287,9 +1282,6 @@
             const enableTorrent = enableTorrentEl ? enableTorrentEl.checked : false;
             const deduplicateStreamsEl = document.getElementById("deduplicateStreams");
             const deduplicateStreams = deduplicateStreamsEl ? deduplicateStreamsEl.checked : false;
-            const scrapeDebridAccountTorrentsEl = document.getElementById("scrapeDebridAccountTorrents");
-            const scrapeDebridAccountTorrents = scrapeDebridAccountTorrentsEl ? scrapeDebridAccountTorrentsEl.checked : false;
-
             const selectedResultFormat = resultFormat.length === defaultResultFormat.length && resultFormat.every((val, index) => val === defaultResultFormat[index]) ? ["all"] : resultFormat;
 
             return {
@@ -1303,7 +1295,6 @@
               debridServices: debridServices,
               enableTorrent: enableTorrent,
               deduplicateStreams: deduplicateStreams,
-              scrapeDebridAccountTorrents: scrapeDebridAccountTorrents,
               debridStreamProxyPassword: debridStreamProxyPassword,
               languages: {
                 required: languages_required,
@@ -1355,10 +1346,6 @@
             }
 
             // scrapeDebridAccountTorrents default is false
-            if (settings.scrapeDebridAccountTorrents === true) {
-              return false;
-            }
-
             // removeTrash default is true
             if (settings.removeTrash !== true) {
               return false;
@@ -1618,11 +1605,6 @@
             const deduplicateStreamsEl = document.getElementById("deduplicateStreams");
             if (deduplicateStreamsEl && settings.deduplicateStreams !== undefined) {
               deduplicateStreamsEl.checked = settings.deduplicateStreams;
-            }
-
-            const scrapeDebridAccountTorrentsEl = document.getElementById("scrapeDebridAccountTorrents");
-            if (scrapeDebridAccountTorrentsEl && settings.scrapeDebridAccountTorrents !== undefined) {
-              scrapeDebridAccountTorrentsEl.checked = settings.scrapeDebridAccountTorrents;
             }
 
             if (settings.debridStreamProxyPassword !== null)
