@@ -1059,10 +1059,10 @@ async def stream(
 
             if sort_mixed:
                 cached_results.append(the_stream)
-            elif is_cached and cache_tier == "acceleratable":
-                acceleratable_results.append(the_stream)
-            elif is_cached:
+            elif is_cached and cache_tier == "cached":
                 cached_results.append(the_stream)
+            elif is_cached:
+                acceleratable_results.append(the_stream)
             else:
                 non_cached_results.append(the_stream)
 
