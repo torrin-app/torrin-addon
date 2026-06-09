@@ -208,16 +208,28 @@ def _select_info_hashes_by_resolution(
         }
 
     if prioritize_cached:
+        # Tier 1: R2 cached (cache_tier == "cached") - instant streaming
         for info_hash in ranked_info_hashes:
-            if not is_cached_by_hash[info_hash]:
+            if not is_cached_by_hash.get(info_hash):
+                continue
+            if torrents[info_hash].get("cache_tier") != "cached":
+                continue
+            try_select(info_hash)
+
+        # Tier 2: Acceleratable (cached on debrid provider)
+        for info_hash in ranked_info_hashes:
+            if not is_cached_by_hash.get(info_hash):
+                continue
+            if torrents[info_hash].get("cache_tier") == "cached":
                 continue
             try_select(info_hash)
 
         if cached_only:
             return selected_info_hashes
 
+        # Tier 3: Uncached
         for info_hash in ranked_info_hashes:
-            if is_cached_by_hash[info_hash]:
+            if is_cached_by_hash.get(info_hash):
                 continue
             try_select(info_hash)
 
