@@ -164,6 +164,9 @@ class DebridService:
                 if torrent is None:
                     continue
 
+                if "cache_tier" not in torrent:
+                    torrent["cache_tier"] = "acceleratable"
+
                 file_index = self._coerce_file_index(row["file_index"])
                 if file_index is not None:
                     torrent["fileIndex"] = file_index
