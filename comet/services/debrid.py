@@ -135,11 +135,13 @@ class DebridService:
                     torrent["parsed"] = merged_parsed
 
                 file_index = self._coerce_file_index(file["index"])
-                if file_index is not None:
+                file_size = file["size"] if file["size"] is not None else 0
+                existing_size = torrent.get("size") or 0
+                if file_index is not None and file_size >= existing_size:
                     torrent["fileIndex"] = file_index
-                if file["title"] is not None:
+                if file["title"] is not None and file_size >= existing_size:
                     torrent["title"] = file["title"]
-                if file["size"] is not None:
+                if file["size"] is not None and file_size >= existing_size:
                     torrent["size"] = file["size"]
 
         asyncio.create_task(cache_availability(self.debrid_service, availability))
