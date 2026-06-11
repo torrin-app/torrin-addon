@@ -424,7 +424,7 @@ class StremThru:
                     magnet_uri += f"&tr={quote(source, safe='')}"
 
             magnet = await self._post_store_json(
-                f"/magnets?client_ip={self.client_ip}",
+                f"/magnets?client_ip={self.client_ip}&sid={self.sid}",
                 {"magnet": magnet_uri},
                 "add torrent to store",
             )
