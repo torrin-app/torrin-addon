@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request
 
 from comet.core.config_validation import config_check
 from comet.core.models import settings
+from comet.api.endpoints.catalog import CATALOG_DEFS
 from comet.debrid.manager import build_addon_name
 from comet.utils.cache import (CachedJSONResponse, CachePolicies,
                                check_etag_match, generate_etag,
@@ -27,13 +28,17 @@ async def manifest(request: Request, b64config: str = None):
         "id": settings.ADDON_ID,
         "description": "Open-source debrid service with instant streaming.",
         "version": "2.0.0",
-        "catalogs": [],
+        "catalogs": CATALOG_DEFS,
         "resources": [
             {
                 "name": "stream",
                 "types": ["movie", "series"],
                 "idPrefixes": ["tt", "kitsu"],
-            }
+            },
+            {
+                "name": "catalog",
+                "types": ["movie", "series"],
+            },
         ],
         "types": ["movie", "series", "anime", "other"],
         "logo": "https://raw.githubusercontent.com/torrin-app/torrin/main/assets/logo.png",

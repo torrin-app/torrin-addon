@@ -9,8 +9,9 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
-from comet.api.endpoints import (admin, base, chilllink, cometnet, cometnet_ui,
-                                 config, debrid_sync, kodi, manifest, playback)
+from comet.api.endpoints import (admin, base, catalog, chilllink, cometnet,
+                                 cometnet_ui, config, debrid_sync, kodi,
+                                 manifest, playback)
 from comet.api.endpoints import stream as streams_router
 from comet.background_scraper.worker import background_scraper
 from comet.cometnet.manager import init_cometnet_service
@@ -240,6 +241,7 @@ if STREMIO_API_PREFIX:
 
 stremio_routers = (
     manifest.router,
+    catalog.router,
     playback.router,
     debrid_sync.router,
     streams_router.streams,
