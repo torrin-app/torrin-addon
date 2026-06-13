@@ -288,6 +288,106 @@ async def _get_library(api_key: str, store_name: str, filter_type: str = "") -> 
 
 _EP_PATTERN = re.compile(r'[Ss](\d{1,2})[Ee](\d{1,2})')
 
+# TMDB show metadata cache.
+_tmdb_show_cache: dict[str, dict | None] = {}
+_tmdb_ep_cache: dict[str, dict | None] = {}
+
+
+async def _fetch_tmdb_show_meta(title: str) -> dict | None:
+    """Search TMDB for a TV show and return metadata."""
+    if title in _tmdb_show_cache:
+        return _tmdb_show_cache[title]
+
+    session = await http_client_manager.get_session()
+    try:
+        async with session.get(
+            f"https://api.themoviedb.org/3/search/tv",
+            params={"query": title},
+            headers=_tmdb_headers(),
+            timeout=aiohttp.ClientTimeout(total=5),
+        ) as resp:
+            if resp.status != 200:
+                _tmdb_show_cache[title] = None
+                return None
+            data = await resp.json()
+            results = data.get("results", [])
+            if not results:
+                _tmdb_show_cache[title] = None
+                return None
+            show = results[0]
+            year = (show.get("first_air_date") or "")[:4]
+            meta = {
+                "tmdb_id": show["id"],
+                "overview": show.get("overview", ""),
+                "genres": [str(g) for g in show.get("genre_ids", [])],
+                "releaseInfo": year,
+            }
+            # Fetch genre names.
+            genre_map = await _get_tv_genres()
+            if genre_map:
+                meta["genres"] = [genre_map.get(g, "") for g in show.get("genre_ids", []) if genre_map.get(g)]
+            _tmdb_show_cache[title] = meta
+            return meta
+    except Exception:
+        _tmdb_show_cache[title] = None
+        return None
+
+
+_tv_genres_cache: dict[int, str] | None = None
+
+
+async def _get_tv_genres() -> dict[int, str]:
+    """Fetch TV genre ID -> name mapping from TMDB."""
+    global _tv_genres_cache
+    if _tv_genres_cache is not None:
+        return _tv_genres_cache
+
+    session = await http_client_manager.get_session()
+    try:
+        async with session.get(
+            "https://api.themoviedb.org/3/genre/tv/list",
+            headers=_tmdb_headers(),
+            timeout=aiohttp.ClientTimeout(total=5),
+        ) as resp:
+            if resp.status != 200:
+                return {}
+            data = await resp.json()
+            _tv_genres_cache = {g["id"]: g["name"] for g in data.get("genres", [])}
+            return _tv_genres_cache
+    except Exception:
+        return {}
+
+
+async def _fetch_tmdb_episode(tmdb_id: int, season: int, episode: int) -> dict | None:
+    """Fetch episode metadata from TMDB."""
+    cache_key = f"{tmdb_id}:{season}:{episode}"
+    if cache_key in _tmdb_ep_cache:
+        return _tmdb_ep_cache[cache_key]
+
+    session = await http_client_manager.get_session()
+    try:
+        async with session.get(
+            f"https://api.themoviedb.org/3/tv/{tmdb_id}/season/{season}/episode/{episode}",
+            headers=_tmdb_headers(),
+            timeout=aiohttp.ClientTimeout(total=5),
+        ) as resp:
+            if resp.status != 200:
+                _tmdb_ep_cache[cache_key] = None
+                return None
+            data = await resp.json()
+            result = {
+                "name": data.get("name", ""),
+                "overview": data.get("overview", ""),
+            }
+            still = data.get("still_path")
+            if still:
+                result["thumbnail"] = f"{TMDB_IMAGE_BASE}{still}"
+            _tmdb_ep_cache[cache_key] = result
+            return result
+    except Exception:
+        _tmdb_ep_cache[cache_key] = None
+        return None
+
 
 async def _get_library_meta(api_key: str, store_name: str, info_hash: str) -> dict | None:
     """Get meta for a single library item by hash."""
@@ -316,16 +416,52 @@ async def _get_library_meta(api_key: str, store_name: str, info_hash: str) -> di
                 for f in files:
                     fname = f.get("name", "")
                     ep_match = _EP_PATTERN.search(fname)
-                    season = int(ep_match.group(1)) if ep_match else 1
-                    episode = int(ep_match.group(2)) if ep_match else f.get("index", 0) + 1
-                    videos.append({
+                    # Skip extras: only include files with S##E## pattern.
+                    if not ep_match:
+                        continue
+                    season = int(ep_match.group(1))
+                    episode = int(ep_match.group(2))
+                    video = {
                         "id": f"torrin:{info_hash}:{f.get('index', 0)}",
                         "title": fname,
                         "season": season,
                         "episode": episode,
                         "released": item.get("added_at", ""),
-                    })
+                    }
+                    videos.append(video)
+                # Sort by season then episode.
+                videos.sort(key=lambda v: (v["season"], v["episode"]))
                 meta["videos"] = videos
+
+                # Fetch show metadata from TMDB for description/genres.
+                try:
+                    from RTN import parse as rtn_parse
+                    clean_title = rtn_parse(name).parsed_title
+                except Exception:
+                    clean_title = name
+                tmdb_meta = await _fetch_tmdb_show_meta(clean_title)
+                if tmdb_meta:
+                    if tmdb_meta.get("overview"):
+                        meta["description"] = tmdb_meta["overview"]
+                    if tmdb_meta.get("genres"):
+                        meta["genres"] = tmdb_meta["genres"]
+                    if tmdb_meta.get("releaseInfo"):
+                        meta["releaseInfo"] = tmdb_meta["releaseInfo"]
+                    tmdb_id = tmdb_meta.get("tmdb_id")
+                    if tmdb_id:
+                        # Enrich episodes with thumbnails/overviews.
+                        ep_tasks = []
+                        for v in videos:
+                            ep_tasks.append(_fetch_tmdb_episode(tmdb_id, v["season"], v["episode"]))
+                        ep_results = await asyncio.gather(*ep_tasks)
+                        for v, ep_data in zip(videos, ep_results):
+                            if ep_data:
+                                if ep_data.get("name"):
+                                    v["title"] = ep_data["name"]
+                                if ep_data.get("overview"):
+                                    v["overview"] = ep_data["overview"]
+                                if ep_data.get("thumbnail"):
+                                    v["thumbnail"] = ep_data["thumbnail"]
             return meta
     return None
 
@@ -335,16 +471,24 @@ async def _get_library_streams(api_key: str, store_name: str, info_hash: str, fi
     items = await _fetch_user_magnets(api_key, store_name)
     for item in items:
         if item.get("hash") == info_hash and item.get("status") == "downloaded":
+            files = item.get("files", [])
+            name = item.get("name", "")
+            content_type = _detect_type(name, files)
+
+            # For movies with multiple files, only return the largest (main movie).
+            if content_type == "movie" and file_idx is None and len(files) > 1:
+                largest = max(files, key=lambda f: f.get("size", 0))
+                files = [largest]
+
             streams = []
-            for f in item.get("files", []):
+            for f in files:
                 idx = f.get("index", 0)
-                # If file_idx specified (episode), only return that file.
                 if file_idx is not None and idx != file_idx:
                     continue
                 link = f.get("link", "")
-                name = f.get("name", "")
+                fname = f.get("name", "")
                 size = f.get("size", 0)
-                if link and name:
+                if link and fname:
                     size_str = ""
                     if size > 0:
                         if size > 1_000_000_000:
@@ -353,11 +497,11 @@ async def _get_library_streams(api_key: str, store_name: str, info_hash: str, fi
                             size_str = f" | {size / 1_000_000:.0f} MB"
                     streams.append({
                         "name": "Torrin",
-                        "description": f"{name}{size_str}",
+                        "description": f"{fname}{size_str}",
                         "url": link,
                         "behaviorHints": {
                             "bingeGroup": f"torrin|{info_hash}",
-                            "filename": name,
+                            "filename": fname,
                         },
                     })
             return streams
