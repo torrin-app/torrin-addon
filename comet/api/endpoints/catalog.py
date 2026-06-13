@@ -3,7 +3,9 @@ import asyncio
 import aiohttp
 from fastapi import APIRouter
 
+from comet.core.config_validation import config_check
 from comet.core.models import settings
+from comet.debrid.manager import get_debrid_credentials
 from comet.metadata.tmdb import DEFAULT_TMDB_READ_ACCESS_TOKEN
 from comet.utils.http_client import http_client_manager
 
@@ -33,6 +35,13 @@ CATALOG_DEFS = [
         "name": "Popular Series",
     },
 ]
+
+# Library catalog is added dynamically when user has debrid configured.
+LIBRARY_CATALOG = {
+    "type": "other",
+    "id": "torrin-library",
+    "name": "My Library",
+}
 
 # Cache TMDB->IMDB mappings to avoid repeated lookups.
 _imdb_cache: dict[str, str | None] = {}
@@ -109,6 +118,114 @@ async def _tmdb_to_meta(item: dict, content_type: str) -> dict | None:
     return meta
 
 
+async def _fetch_user_magnets(api_key: str, store_name: str) -> list[dict]:
+    """Fetch user's magnets from Torrin API."""
+    session = await http_client_manager.get_session()
+    headers = {
+        "X-StremThru-Store-Name": store_name,
+        "X-StremThru-Store-Authorization": f"Bearer {api_key}",
+        "User-Agent": "comet",
+    }
+    try:
+        async with session.get(
+            f"{settings.STREMTHRU_URL}/v0/store/magnets?limit=200&offset=0&client_ip=127.0.0.1",
+            headers=headers,
+            timeout=aiohttp.ClientTimeout(total=10),
+        ) as resp:
+            if resp.status != 200:
+                return []
+            payload = await resp.json()
+            return payload.get("data", {}).get("items", [])
+    except Exception:
+        return []
+
+
+async def _get_library(api_key: str, store_name: str) -> list[dict]:
+    """Fetch user's cached content and return as catalog metas with torrin: prefix."""
+    items = await _fetch_user_magnets(api_key, store_name)
+
+    metas = []
+    seen_hashes = set()
+    for item in items:
+        if item.get("status") != "downloaded":
+            continue
+        info_hash = item.get("hash", "")
+        name = item.get("name", "")
+        if not name or not info_hash or info_hash in seen_hashes:
+            continue
+        seen_hashes.add(info_hash)
+
+        meta = {
+            "id": f"torrin:{info_hash}",
+            "type": "other",
+            "name": name,
+        }
+
+        # If we have IMDB ID, try to get poster from TMDB.
+        imdb_id = item.get("imdb_id", "")
+        if imdb_id and imdb_id.startswith("tt"):
+            meta["imdb_id"] = imdb_id
+
+        metas.append(meta)
+
+    return metas
+
+
+async def _get_library_meta(api_key: str, store_name: str, info_hash: str) -> dict | None:
+    """Get meta for a single library item by hash."""
+    items = await _fetch_user_magnets(api_key, store_name)
+    for item in items:
+        if item.get("hash") == info_hash and item.get("status") == "downloaded":
+            files = item.get("files", [])
+            meta = {
+                "id": f"torrin:{info_hash}",
+                "type": "other",
+                "name": item.get("name", info_hash),
+            }
+            if files:
+                videos = []
+                for f in files:
+                    videos.append({
+                        "id": f"torrin:{info_hash}:{f.get('index', 0)}",
+                        "title": f.get("name", ""),
+                        "released": item.get("added_at", ""),
+                    })
+                if len(videos) > 1:
+                    meta["videos"] = videos
+            return meta
+    return None
+
+
+async def _get_library_streams(api_key: str, store_name: str, info_hash: str) -> list[dict]:
+    """Get streams for a library item - R2 signed URLs only, no scrapers."""
+    items = await _fetch_user_magnets(api_key, store_name)
+    for item in items:
+        if item.get("hash") == info_hash and item.get("status") == "downloaded":
+            streams = []
+            for f in item.get("files", []):
+                link = f.get("link", "")
+                name = f.get("name", "")
+                size = f.get("size", 0)
+                if link and name:
+                    size_str = ""
+                    if size > 0:
+                        if size > 1_000_000_000:
+                            size_str = f" | {size / 1_000_000_000:.1f} GB"
+                        elif size > 1_000_000:
+                            size_str = f" | {size / 1_000_000:.0f} MB"
+                    streams.append({
+                        "name": "Torrin",
+                        "description": f"{name}{size_str}",
+                        "url": link,
+                        "behaviorHints": {
+                            "bingeGroup": f"torrin|{info_hash}",
+                            "filename": name,
+                        },
+                    })
+            return streams
+    return []
+
+
 async def _get_catalog(catalog_id: str, skip: int = 0) -> list[dict]:
     page = (skip // 20) + 1
 
@@ -145,6 +262,14 @@ async def _get_catalog(catalog_id: str, skip: int = 0) -> list[dict]:
     summary="Catalog",
 )
 async def catalog(type: str, catalog_id: str, b64config: str = None):
+    if catalog_id == "torrin-library" and b64config:
+        config = config_check(b64config, strict_b64config=True)
+        if config:
+            debrid_entries = config.get("_debridEntries", [])
+            if debrid_entries:
+                entry = debrid_entries[0]
+                metas = await _get_library(entry["apiKey"], entry["service"])
+                return {"metas": metas}
     metas = await _get_catalog(catalog_id)
     return {"metas": metas}
 
@@ -160,5 +285,51 @@ async def catalog(type: str, catalog_id: str, b64config: str = None):
     summary="Catalog with pagination",
 )
 async def catalog_skip(type: str, catalog_id: str, skip: int = 0, b64config: str = None):
+    if catalog_id == "torrin-library" and b64config:
+        config = config_check(b64config, strict_b64config=True)
+        if config:
+            debrid_entries = config.get("_debridEntries", [])
+            if debrid_entries:
+                entry = debrid_entries[0]
+                metas = await _get_library(entry["apiKey"], entry["service"])
+                return {"metas": metas}
     metas = await _get_catalog(catalog_id, skip=skip)
     return {"metas": metas}
+
+
+# --- Library meta handler ---
+@router.get(
+    "/{b64config}/meta/{type}/torrin:{info_hash}.json",
+    tags=["Stremio"],
+    summary="Library Meta",
+)
+async def library_meta(type: str, info_hash: str, b64config: str):
+    config = config_check(b64config, strict_b64config=True)
+    if not config:
+        return {"meta": None}
+    debrid_entries = config.get("_debridEntries", [])
+    if not debrid_entries:
+        return {"meta": None}
+    entry = debrid_entries[0]
+    meta = await _get_library_meta(entry["apiKey"], entry["service"], info_hash)
+    if not meta:
+        return {"meta": None}
+    return {"meta": meta}
+
+
+# --- Library stream handler ---
+@router.get(
+    "/{b64config}/stream/{type}/torrin:{info_hash}.json",
+    tags=["Stremio"],
+    summary="Library Stream",
+)
+async def library_stream(type: str, info_hash: str, b64config: str):
+    config = config_check(b64config, strict_b64config=True)
+    if not config:
+        return {"streams": []}
+    debrid_entries = config.get("_debridEntries", [])
+    if not debrid_entries:
+        return {"streams": []}
+    entry = debrid_entries[0]
+    streams = await _get_library_streams(entry["apiKey"], entry["service"], info_hash)
+    return {"streams": streams}
