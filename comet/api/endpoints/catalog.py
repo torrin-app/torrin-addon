@@ -140,11 +140,42 @@ async def _fetch_user_magnets(api_key: str, store_name: str) -> list[dict]:
         return []
 
 
+async def _get_poster_for_imdb(imdb_id: str) -> str | None:
+    """Fetch poster URL from TMDB for an IMDB ID."""
+    cache_key = f"poster:{imdb_id}"
+    if cache_key in _imdb_cache:
+        return _imdb_cache[cache_key]
+
+    session = await http_client_manager.get_session()
+    try:
+        async with session.get(
+            f"https://api.themoviedb.org/3/find/{imdb_id}?external_source=imdb_id",
+            headers=_tmdb_headers(),
+            timeout=aiohttp.ClientTimeout(total=5),
+        ) as resp:
+            if resp.status != 200:
+                _imdb_cache[cache_key] = None
+                return None
+            data = await resp.json()
+            for key in ("movie_results", "tv_results"):
+                results = data.get(key, [])
+                if results and results[0].get("poster_path"):
+                    poster = f"{TMDB_IMAGE_BASE}{results[0]['poster_path']}"
+                    _imdb_cache[cache_key] = poster
+                    return poster
+            _imdb_cache[cache_key] = None
+            return None
+    except Exception:
+        _imdb_cache[cache_key] = None
+        return None
+
+
 async def _get_library(api_key: str, store_name: str) -> list[dict]:
     """Fetch user's cached content and return as catalog metas with torrin: prefix."""
     items = await _fetch_user_magnets(api_key, store_name)
 
     metas = []
+    poster_tasks = []
     seen_hashes = set()
     for item in items:
         if item.get("status") != "downloaded":
@@ -161,12 +192,20 @@ async def _get_library(api_key: str, store_name: str) -> list[dict]:
             "name": name,
         }
 
-        # If we have IMDB ID, try to get poster from TMDB.
         imdb_id = item.get("imdb_id", "")
         if imdb_id and imdb_id.startswith("tt"):
             meta["imdb_id"] = imdb_id
+            poster_tasks.append((len(metas), _get_poster_for_imdb(imdb_id)))
 
         metas.append(meta)
+
+    # Fetch posters in parallel.
+    if poster_tasks:
+        indices, tasks = zip(*poster_tasks)
+        posters = await asyncio.gather(*tasks)
+        for idx, poster in zip(indices, posters):
+            if poster:
+                metas[idx]["poster"] = poster
 
     return metas
 
@@ -182,6 +221,13 @@ async def _get_library_meta(api_key: str, store_name: str, info_hash: str) -> di
                 "type": "other",
                 "name": item.get("name", info_hash),
             }
+            # Fetch poster if IMDB ID available.
+            imdb_id = item.get("imdb_id", "")
+            if imdb_id and imdb_id.startswith("tt"):
+                poster = await _get_poster_for_imdb(imdb_id)
+                if poster:
+                    meta["poster"] = poster
+                    meta["background"] = poster
             if files:
                 videos = []
                 for f in files:
