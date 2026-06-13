@@ -170,6 +170,22 @@ async def _get_poster_for_imdb(imdb_id: str) -> str | None:
         return None
 
 
+import re
+
+_SERIES_PATTERN = re.compile(r'[Ss]\d{1,2}[Ee]\d{1,2}|[Ss]\d{1,2}|Season\s*\d|Complete\s*Series', re.IGNORECASE)
+
+
+def _detect_type(name: str, files: list) -> str:
+    """Detect if content is a movie or series based on name and file count."""
+    if _SERIES_PATTERN.search(name):
+        return "series"
+    if len(files) > 1:
+        episode_files = sum(1 for f in files if _SERIES_PATTERN.search(f.get("name", "")))
+        if episode_files > 1:
+            return "series"
+    return "movie"
+
+
 async def _get_library(api_key: str, store_name: str) -> list[dict]:
     """Fetch user's cached content and return as catalog metas with torrin: prefix."""
     items = await _fetch_user_magnets(api_key, store_name)
@@ -186,9 +202,11 @@ async def _get_library(api_key: str, store_name: str) -> list[dict]:
             continue
         seen_hashes.add(info_hash)
 
+        content_type = _detect_type(name, item.get("files", []))
+
         meta = {
             "id": f"torrin:{info_hash}",
-            "type": "movie",
+            "type": content_type,
             "name": name,
         }
 
@@ -210,17 +228,24 @@ async def _get_library(api_key: str, store_name: str) -> list[dict]:
     return metas
 
 
+_EP_PATTERN = re.compile(r'[Ss](\d{1,2})[Ee](\d{1,2})')
+
+
 async def _get_library_meta(api_key: str, store_name: str, info_hash: str) -> dict | None:
     """Get meta for a single library item by hash."""
     items = await _fetch_user_magnets(api_key, store_name)
     for item in items:
         if item.get("hash") == info_hash and item.get("status") == "downloaded":
             files = item.get("files", [])
+            name = item.get("name", info_hash)
+            content_type = _detect_type(name, files)
+
             meta = {
                 "id": f"torrin:{info_hash}",
-                "type": "other",
-                "name": item.get("name", info_hash),
+                "type": content_type,
+                "name": name,
             }
+
             # Fetch poster if IMDB ID available.
             imdb_id = item.get("imdb_id", "")
             if imdb_id and imdb_id.startswith("tt"):
@@ -228,27 +253,37 @@ async def _get_library_meta(api_key: str, store_name: str, info_hash: str) -> di
                 if poster:
                     meta["poster"] = poster
                     meta["background"] = poster
-            if files:
+
+            if content_type == "series" and files:
                 videos = []
                 for f in files:
+                    fname = f.get("name", "")
+                    ep_match = _EP_PATTERN.search(fname)
+                    season = int(ep_match.group(1)) if ep_match else 1
+                    episode = int(ep_match.group(2)) if ep_match else f.get("index", 0) + 1
                     videos.append({
                         "id": f"torrin:{info_hash}:{f.get('index', 0)}",
-                        "title": f.get("name", ""),
+                        "title": fname,
+                        "season": season,
+                        "episode": episode,
                         "released": item.get("added_at", ""),
                     })
-                if len(videos) > 1:
-                    meta["videos"] = videos
+                meta["videos"] = videos
             return meta
     return None
 
 
-async def _get_library_streams(api_key: str, store_name: str, info_hash: str) -> list[dict]:
+async def _get_library_streams(api_key: str, store_name: str, info_hash: str, file_idx: int | None = None) -> list[dict]:
     """Get streams for a library item - R2 signed URLs only, no scrapers."""
     items = await _fetch_user_magnets(api_key, store_name)
     for item in items:
         if item.get("hash") == info_hash and item.get("status") == "downloaded":
             streams = []
             for f in item.get("files", []):
+                idx = f.get("index", 0)
+                # If file_idx specified (episode), only return that file.
+                if file_idx is not None and idx != file_idx:
+                    continue
                 link = f.get("link", "")
                 name = f.get("name", "")
                 size = f.get("size", 0)
@@ -365,11 +400,11 @@ async def library_meta(type: str, info_hash: str, b64config: str):
 
 # --- Library stream handler ---
 @router.get(
-    "/{b64config}/stream/{type}/torrin:{info_hash}.json",
+    "/{b64config}/stream/{type}/torrin:{torrin_id}.json",
     tags=["Stremio"],
     summary="Library Stream",
 )
-async def library_stream(type: str, info_hash: str, b64config: str):
+async def library_stream(type: str, torrin_id: str, b64config: str):
     config = config_check(b64config, strict_b64config=True)
     if not config:
         return {"streams": []}
@@ -377,5 +412,11 @@ async def library_stream(type: str, info_hash: str, b64config: str):
     if not debrid_entries:
         return {"streams": []}
     entry = debrid_entries[0]
-    streams = await _get_library_streams(entry["apiKey"], entry["service"], info_hash)
+
+    # Parse torrin_id: "HASH" for movies, "HASH:INDEX" for episodes.
+    parts = torrin_id.split(":")
+    info_hash = parts[0]
+    file_idx = int(parts[1]) if len(parts) > 1 else None
+
+    streams = await _get_library_streams(entry["apiKey"], entry["service"], info_hash, file_idx)
     return {"streams": streams}

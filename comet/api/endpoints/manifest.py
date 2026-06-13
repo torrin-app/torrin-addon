@@ -73,7 +73,7 @@ async def manifest(request: Request, b64config: str = None):
             },
             {
                 "name": "meta",
-                "types": ["movie"],
+                "types": ["movie", "series"],
                 "idPrefixes": ["torrin:"],
             },
         ]
