@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request
 
 from comet.core.config_validation import config_check
 from comet.core.models import settings
-from comet.api.endpoints.catalog import CATALOG_DEFS, LIBRARY_CATALOG
+from comet.api.endpoints.catalog import CATALOG_DEFS, LIBRARY_CATALOGS
 from comet.debrid.manager import build_addon_name
 from comet.utils.cache import (CachedJSONResponse, CachePolicies,
                                check_etag_match, generate_etag,
@@ -60,7 +60,7 @@ async def manifest(request: Request, b64config: str = None):
     # Add library catalog if user has debrid configured.
     debrid_entries = config.get("_debridEntries", [])
     if debrid_entries:
-        base_manifest["catalogs"] = list(CATALOG_DEFS) + [LIBRARY_CATALOG]
+        base_manifest["catalogs"] = list(CATALOG_DEFS) + LIBRARY_CATALOGS
         base_manifest["resources"] = [
             {
                 "name": "stream",

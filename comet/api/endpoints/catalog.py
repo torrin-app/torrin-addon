@@ -37,11 +37,18 @@ CATALOG_DEFS = [
 ]
 
 # Library catalog is added dynamically when user has debrid configured.
-LIBRARY_CATALOG = {
-    "type": "movie",
-    "id": "torrin-library",
-    "name": "My Library",
-}
+LIBRARY_CATALOGS = [
+    {
+        "type": "movie",
+        "id": "torrin-library-movies",
+        "name": "My Library",
+    },
+    {
+        "type": "series",
+        "id": "torrin-library-series",
+        "name": "My Shows",
+    },
+]
 
 # Cache TMDB->IMDB mappings to avoid repeated lookups.
 _imdb_cache: dict[str, str | None] = {}
@@ -170,6 +177,54 @@ async def _get_poster_for_imdb(imdb_id: str) -> str | None:
         return None
 
 
+async def _get_poster_by_name(name: str, content_type: str) -> str | None:
+    """Search TMDB by RTN parsed title."""
+    try:
+        from RTN import parse as rtn_parse
+        clean = rtn_parse(name).parsed_title
+    except Exception:
+        clean = name
+    if not clean or len(clean) < 2:
+        return None
+
+    cache_key = f"poster:name:{clean}"
+    if cache_key in _imdb_cache:
+        return _imdb_cache[cache_key]
+
+    endpoint = "search/tv" if content_type == "series" else "search/movie"
+    session = await http_client_manager.get_session()
+    try:
+        async with session.get(
+            f"https://api.themoviedb.org/3/{endpoint}",
+            params={"query": clean},
+            headers=_tmdb_headers(),
+            timeout=aiohttp.ClientTimeout(total=5),
+        ) as resp:
+            if resp.status != 200:
+                _imdb_cache[cache_key] = None
+                return None
+            data = await resp.json()
+            results = data.get("results", [])
+            if results and results[0].get("poster_path"):
+                poster = f"{TMDB_IMAGE_BASE}{results[0]['poster_path']}"
+                _imdb_cache[cache_key] = poster
+                return poster
+            _imdb_cache[cache_key] = None
+            return None
+    except Exception:
+        _imdb_cache[cache_key] = None
+        return None
+
+
+async def _get_poster(name: str, content_type: str, imdb_id: str = "") -> str | None:
+    """Get poster - try IMDB ID first, fall back to name search."""
+    if imdb_id and imdb_id.startswith("tt"):
+        poster = await _get_poster_for_imdb(imdb_id)
+        if poster:
+            return poster
+    return await _get_poster_by_name(name, content_type)
+
+
 import re
 
 _SERIES_PATTERN = re.compile(r'[Ss]\d{1,2}[Ee]\d{1,2}|[Ss]\d{1,2}|Season\s*\d|Complete\s*Series', re.IGNORECASE)
@@ -186,7 +241,7 @@ def _detect_type(name: str, files: list) -> str:
     return "movie"
 
 
-async def _get_library(api_key: str, store_name: str) -> list[dict]:
+async def _get_library(api_key: str, store_name: str, filter_type: str = "") -> list[dict]:
     """Fetch user's cached content and return as catalog metas with torrin: prefix."""
     items = await _fetch_user_magnets(api_key, store_name)
 
@@ -204,6 +259,9 @@ async def _get_library(api_key: str, store_name: str) -> list[dict]:
 
         content_type = _detect_type(name, item.get("files", []))
 
+        if filter_type and content_type != filter_type:
+            continue
+
         meta = {
             "id": f"torrin:{info_hash}",
             "type": content_type,
@@ -213,7 +271,7 @@ async def _get_library(api_key: str, store_name: str) -> list[dict]:
         imdb_id = item.get("imdb_id", "")
         if imdb_id and imdb_id.startswith("tt"):
             meta["imdb_id"] = imdb_id
-            poster_tasks.append((len(metas), _get_poster_for_imdb(imdb_id)))
+        poster_tasks.append((len(metas), _get_poster(name, content_type, imdb_id)))
 
         metas.append(meta)
 
@@ -246,13 +304,12 @@ async def _get_library_meta(api_key: str, store_name: str, info_hash: str) -> di
                 "name": name,
             }
 
-            # Fetch poster if IMDB ID available.
+            # Fetch poster.
             imdb_id = item.get("imdb_id", "")
-            if imdb_id and imdb_id.startswith("tt"):
-                poster = await _get_poster_for_imdb(imdb_id)
-                if poster:
-                    meta["poster"] = poster
-                    meta["background"] = poster
+            poster = await _get_poster(name, content_type, imdb_id)
+            if poster:
+                meta["poster"] = poster
+                meta["background"] = poster
 
             if content_type == "series" and files:
                 videos = []
@@ -343,13 +400,14 @@ async def _get_catalog(catalog_id: str, skip: int = 0) -> list[dict]:
     summary="Catalog",
 )
 async def catalog(type: str, catalog_id: str, b64config: str = None):
-    if catalog_id == "torrin-library" and b64config:
+    if catalog_id in ("torrin-library-movies", "torrin-library-series") and b64config:
+        filter_type = "movie" if catalog_id == "torrin-library-movies" else "series"
         config = config_check(b64config, strict_b64config=True)
         if config:
             debrid_entries = config.get("_debridEntries", [])
             if debrid_entries:
                 entry = debrid_entries[0]
-                metas = await _get_library(entry["apiKey"], entry["service"])
+                metas = await _get_library(entry["apiKey"], entry["service"], filter_type)
                 return {"metas": metas}
     metas = await _get_catalog(catalog_id)
     return {"metas": metas}
@@ -366,13 +424,14 @@ async def catalog(type: str, catalog_id: str, b64config: str = None):
     summary="Catalog with pagination",
 )
 async def catalog_skip(type: str, catalog_id: str, skip: int = 0, b64config: str = None):
-    if catalog_id == "torrin-library" and b64config:
+    if catalog_id in ("torrin-library-movies", "torrin-library-series") and b64config:
+        filter_type = "movie" if catalog_id == "torrin-library-movies" else "series"
         config = config_check(b64config, strict_b64config=True)
         if config:
             debrid_entries = config.get("_debridEntries", [])
             if debrid_entries:
                 entry = debrid_entries[0]
-                metas = await _get_library(entry["apiKey"], entry["service"])
+                metas = await _get_library(entry["apiKey"], entry["service"], filter_type)
                 return {"metas": metas}
     metas = await _get_catalog(catalog_id, skip=skip)
     return {"metas": metas}
