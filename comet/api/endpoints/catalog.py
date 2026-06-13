@@ -38,7 +38,7 @@ CATALOG_DEFS = [
 
 # Library catalog is added dynamically when user has debrid configured.
 LIBRARY_CATALOG = {
-    "type": "other",
+    "type": "movie",
     "id": "torrin-library",
     "name": "My Library",
 }
@@ -188,7 +188,7 @@ async def _get_library(api_key: str, store_name: str) -> list[dict]:
 
         meta = {
             "id": f"torrin:{info_hash}",
-            "type": "other",
+            "type": "movie",
             "name": name,
         }
 

@@ -65,20 +65,15 @@ async def manifest(request: Request, b64config: str = None):
             {
                 "name": "stream",
                 "types": ["movie", "series"],
-                "idPrefixes": ["tt", "kitsu"],
+                "idPrefixes": ["tt", "kitsu", "torrin:"],
             },
             {
                 "name": "catalog",
-                "types": ["movie", "series", "other"],
+                "types": ["movie", "series"],
             },
             {
                 "name": "meta",
-                "types": ["other"],
-                "idPrefixes": ["torrin:"],
-            },
-            {
-                "name": "stream",
-                "types": ["other"],
+                "types": ["movie"],
                 "idPrefixes": ["torrin:"],
             },
         ]
