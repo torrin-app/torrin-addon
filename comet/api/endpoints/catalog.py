@@ -1,7 +1,11 @@
 import asyncio
+import os
 
 import aiohttp
 from fastapi import APIRouter
+
+# Live sports/IPTV catalog is gated behind a flag (default off).
+SPORTS_ENABLED = os.getenv("SPORTS_CATALOG_ENABLED", "false").lower() in ("1", "true", "yes")
 
 from comet.core.config_validation import config_check
 from comet.core.logger import logger
@@ -616,8 +620,10 @@ async def catalog(type: str, catalog_id: str, b64config: str = None):
                 entry = debrid_entries[0]
                 metas = await _get_library(entry["apiKey"], entry["service"], filter_type)
                 return {"metas": metas}
-    if catalog_id == "torrin-sports" and b64config:
-        config = config_check(b64config, strict_b64config=True)
+    if catalog_id == "torrin-sports":
+        if not SPORTS_ENABLED:
+            return {"metas": []}
+        config = config_check(b64config, strict_b64config=True) if b64config else None
         if config:
             debrid_entries = config.get("_debridEntries", [])
             if debrid_entries:
@@ -649,6 +655,8 @@ def _parse_sports_extra(extra: str) -> tuple[int, str | None]:
     summary="Sports Catalog (genre/skip)",
 )
 async def sports_catalog_extra(extra: str, b64config: str):
+    if not SPORTS_ENABLED:
+        return {"metas": []}
     config = config_check(b64config, strict_b64config=True)
     if not config:
         return {"metas": []}
@@ -671,8 +679,10 @@ async def sports_catalog_extra(extra: str, b64config: str):
     summary="Catalog with pagination",
 )
 async def catalog_skip(type: str, catalog_id: str, skip: int = 0, b64config: str = None):
-    if catalog_id == "torrin-sports" and b64config:
-        config = config_check(b64config, strict_b64config=True)
+    if catalog_id == "torrin-sports":
+        if not SPORTS_ENABLED:
+            return {"metas": []}
+        config = config_check(b64config, strict_b64config=True) if b64config else None
         if config:
             debrid_entries = config.get("_debridEntries", [])
             if debrid_entries:
@@ -743,6 +753,8 @@ async def library_stream(type: str, torrin_id: str, b64config: str):
     summary="Sports Channel Meta",
 )
 async def sports_meta(stream_id: str, b64config: str):
+    if not SPORTS_ENABLED:
+        return {"meta": None}
     config = config_check(b64config, strict_b64config=True)
     if not config:
         return {"meta": None}
@@ -763,6 +775,8 @@ async def sports_meta(stream_id: str, b64config: str):
     summary="Sports Channel Stream",
 )
 async def sports_stream(stream_id: str, b64config: str):
+    if not SPORTS_ENABLED:
+        return {"streams": []}
     config = config_check(b64config, strict_b64config=True)
     if not config:
         return {"streams": []}
