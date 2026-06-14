@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request
 
 from comet.core.config_validation import config_check
 from comet.core.models import settings
-from comet.api.endpoints.catalog import CATALOG_DEFS, LIBRARY_CATALOGS
+from comet.api.endpoints.catalog import CATALOG_DEFS, LIBRARY_CATALOGS, SPORTS_CATALOGS
 from comet.debrid.manager import build_addon_name
 from comet.utils.cache import (CachedJSONResponse, CachePolicies,
                                check_etag_match, generate_etag,
@@ -57,24 +57,25 @@ async def manifest(request: Request, b64config: str = None):
 
     base_manifest["name"] = build_addon_name(settings.ADDON_NAME, config)
 
-    # Add library catalog if user has debrid configured.
+    # Add library + sports catalogs if user has debrid configured.
     debrid_entries = config.get("_debridEntries", [])
     if debrid_entries:
-        base_manifest["catalogs"] = list(CATALOG_DEFS) + LIBRARY_CATALOGS
+        base_manifest["catalogs"] = list(CATALOG_DEFS) + LIBRARY_CATALOGS + SPORTS_CATALOGS
+        base_manifest["types"] = ["movie", "series", "anime", "other", "tv"]
         base_manifest["resources"] = [
             {
                 "name": "stream",
-                "types": ["movie", "series"],
-                "idPrefixes": ["tt", "kitsu", "torrin:"],
+                "types": ["movie", "series", "tv"],
+                "idPrefixes": ["tt", "kitsu", "torrin:", "torrin-sports:"],
             },
             {
                 "name": "catalog",
-                "types": ["movie", "series"],
+                "types": ["movie", "series", "tv"],
             },
             {
                 "name": "meta",
-                "types": ["movie", "series"],
-                "idPrefixes": ["torrin:"],
+                "types": ["movie", "series", "tv"],
+                "idPrefixes": ["torrin:", "torrin-sports:"],
             },
         ]
 

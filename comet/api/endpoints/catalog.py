@@ -4,6 +4,7 @@ import aiohttp
 from fastapi import APIRouter
 
 from comet.core.config_validation import config_check
+from comet.core.logger import logger
 from comet.core.models import settings
 from comet.debrid.manager import get_debrid_credentials
 from comet.metadata.tmdb import DEFAULT_TMDB_READ_ACCESS_TOKEN
@@ -49,6 +50,68 @@ LIBRARY_CATALOGS = [
         "name": "My Shows",
     },
 ]
+
+# Genre dropdown for the Sports catalog (maps to IPTV category names).
+SPORTS_GENRES = [
+    "PPV Live Events", "US Sports", "UK Sports", "Canada Sports", "beIN Sports",
+    "ESPN Plus", "DAZN", "TSN Plus", "NFL", "NBA", "NHL", "MLB Baseball league",
+    "NCAA", "NCAAF", "NCAAB", "Football", "EPL Premier League", "MLS", "UEFA Championship",
+    "Bundesliga", "F1 Formula", "Formula1", "MOTOGP", "Golf", "Tennis Channel",
+    "Rugby league", "WNBA League Pass", "FITE TV", "FIFA World Cup 2026", "SPORTS",
+]
+
+# Live sports channels, added when debrid configured (needs api key for streams).
+SPORTS_CATALOGS = [
+    {
+        "type": "tv",
+        "id": "torrin-sports",
+        "name": "Torrin Sports",
+        "genres": SPORTS_GENRES,
+        "extra": [
+            {"name": "genre", "options": SPORTS_GENRES, "isRequired": False},
+            {"name": "skip", "isRequired": False},
+        ],
+    },
+]
+
+_SPORTS_PAGE = 100
+
+
+def _sports_page(channels: list[dict], skip: int, genre: str | None) -> list[dict]:
+    if genre:
+        channels = [c for c in channels if c.get("category") == genre]
+    page = channels[skip : skip + _SPORTS_PAGE]
+    return [_sports_channel_meta(ch) for ch in page]
+
+
+async def _get_sports_channels(api_key: str) -> list[dict]:
+    """Fetch live sports channels from Torrin for the catalog."""
+    if not settings.STREMTHRU_URL or not api_key:
+        return []
+    try:
+        url = f"{settings.STREMTHRU_URL}/api/iptv/sports"
+        headers = {"Authorization": f"Bearer {api_key}"}
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                if resp.status != 200:
+                    return []
+                data = await resp.json()
+                return data.get("channels") or []
+    except Exception as e:
+        logger.warning(f"sports channels fetch failed: {e}")
+        return []
+
+
+def _sports_channel_meta(ch: dict) -> dict:
+    sid = ch.get("stream_id")
+    return {
+        "id": f"torrin-sports:{sid}",
+        "type": "tv",
+        "name": ch.get("name", "") or f"Channel {sid}",
+        "poster": ch.get("logo", "") or "",
+        "posterShape": "square",
+        "genres": [ch.get("category", "")] if ch.get("category") else [],
+    }
 
 # Cache TMDB->IMDB mappings to avoid repeated lookups.
 _imdb_cache: dict[str, str | None] = {}
@@ -553,8 +616,48 @@ async def catalog(type: str, catalog_id: str, b64config: str = None):
                 entry = debrid_entries[0]
                 metas = await _get_library(entry["apiKey"], entry["service"], filter_type)
                 return {"metas": metas}
+    if catalog_id == "torrin-sports" and b64config:
+        config = config_check(b64config, strict_b64config=True)
+        if config:
+            debrid_entries = config.get("_debridEntries", [])
+            if debrid_entries:
+                channels = await _get_sports_channels(debrid_entries[0]["apiKey"])
+                return {"metas": _sports_page(channels, 0, None)}
+        return {"metas": []}
     metas = await _get_catalog(catalog_id)
     return {"metas": metas}
+
+
+def _parse_sports_extra(extra: str) -> tuple[int, str | None]:
+    """Parse Stremio extra segment like 'genre=NFL&skip=100'."""
+    skip, genre = 0, None
+    for part in extra.split("&"):
+        if part.startswith("skip="):
+            try:
+                skip = int(part[5:])
+            except ValueError:
+                skip = 0
+        elif part.startswith("genre="):
+            from urllib.parse import unquote
+            genre = unquote(part[6:]) or None
+    return skip, genre
+
+
+@router.get(
+    "/{b64config}/catalog/tv/torrin-sports/{extra}.json",
+    tags=["Stremio"],
+    summary="Sports Catalog (genre/skip)",
+)
+async def sports_catalog_extra(extra: str, b64config: str):
+    config = config_check(b64config, strict_b64config=True)
+    if not config:
+        return {"metas": []}
+    debrid_entries = config.get("_debridEntries", [])
+    if not debrid_entries:
+        return {"metas": []}
+    skip, genre = _parse_sports_extra(extra)
+    channels = await _get_sports_channels(debrid_entries[0]["apiKey"])
+    return {"metas": _sports_page(channels, skip, genre)}
 
 
 @router.get(
@@ -568,6 +671,14 @@ async def catalog(type: str, catalog_id: str, b64config: str = None):
     summary="Catalog with pagination",
 )
 async def catalog_skip(type: str, catalog_id: str, skip: int = 0, b64config: str = None):
+    if catalog_id == "torrin-sports" and b64config:
+        config = config_check(b64config, strict_b64config=True)
+        if config:
+            debrid_entries = config.get("_debridEntries", [])
+            if debrid_entries:
+                channels = await _get_sports_channels(debrid_entries[0]["apiKey"])
+                return {"metas": _sports_page(channels, skip, None)}
+        return {"metas": []}
     if catalog_id in ("torrin-library-movies", "torrin-library-series") and b64config:
         filter_type = "movie" if catalog_id == "torrin-library-movies" else "series"
         config = config_check(b64config, strict_b64config=True)
@@ -623,3 +734,50 @@ async def library_stream(type: str, torrin_id: str, b64config: str):
 
     streams = await _get_library_streams(entry["apiKey"], entry["service"], info_hash, file_idx)
     return {"streams": streams}
+
+
+# --- Sports TV meta handler ---
+@router.get(
+    "/{b64config}/meta/tv/torrin-sports:{stream_id}.json",
+    tags=["Stremio"],
+    summary="Sports Channel Meta",
+)
+async def sports_meta(stream_id: str, b64config: str):
+    config = config_check(b64config, strict_b64config=True)
+    if not config:
+        return {"meta": None}
+    debrid_entries = config.get("_debridEntries", [])
+    if not debrid_entries:
+        return {"meta": None}
+    channels = await _get_sports_channels(debrid_entries[0]["apiKey"])
+    for ch in channels:
+        if str(ch.get("stream_id")) == stream_id:
+            return {"meta": _sports_channel_meta(ch)}
+    return {"meta": None}
+
+
+# --- Sports TV stream handler ---
+@router.get(
+    "/{b64config}/stream/tv/torrin-sports:{stream_id}.json",
+    tags=["Stremio"],
+    summary="Sports Channel Stream",
+)
+async def sports_stream(stream_id: str, b64config: str):
+    config = config_check(b64config, strict_b64config=True)
+    if not config:
+        return {"streams": []}
+    debrid_entries = config.get("_debridEntries", [])
+    if not debrid_entries or not settings.STREMTHRU_URL:
+        return {"streams": []}
+    api_key = debrid_entries[0]["apiKey"]
+    url = f"{settings.STREMTHRU_URL}/api/stream/iptv-live/{stream_id}.m3u8?token={api_key}"
+    return {
+        "streams": [
+            {
+                "name": "[Torrin📺] Live",
+                "description": "Live sports channel",
+                "url": url,
+                "behaviorHints": {"notWebReady": True},
+            }
+        ]
+    }
