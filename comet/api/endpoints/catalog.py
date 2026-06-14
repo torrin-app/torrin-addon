@@ -770,7 +770,9 @@ async def sports_stream(stream_id: str, b64config: str):
     if not debrid_entries or not settings.STREMTHRU_URL:
         return {"streams": []}
     api_key = debrid_entries[0]["apiKey"]
-    url = f"{settings.STREMTHRU_URL}/api/stream/iptv-live/{stream_id}.m3u8?token={api_key}"
+    # .ts so the player treats it as progressive MPEG-TS (the upstream serves raw
+    # TS, not an HLS playlist). The Torrin proxy fetches the provider's m3u8.
+    url = f"{settings.STREMTHRU_URL}/api/stream/iptv-live/{stream_id}.ts?token={api_key}"
     return {
         "streams": [
             {
