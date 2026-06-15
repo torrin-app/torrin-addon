@@ -3,6 +3,7 @@ import os
 
 import aiohttp
 from fastapi import APIRouter
+from RTN import parse
 
 # Live sports/IPTV catalog is gated behind a flag (default off).
 SPORTS_ENABLED = os.getenv("SPORTS_CATALOG_ENABLED", "false").lower() in ("1", "true", "yes")
@@ -294,15 +295,25 @@ async def _get_poster(name: str, content_type: str, imdb_id: str = "") -> str | 
 
 import re
 
-_SERIES_PATTERN = re.compile(r'[Ss]\d{1,2}[Ee]\d{1,2}|[Ss]\d{1,2}|Season\s*\d|Complete\s*Series', re.IGNORECASE)
+def _is_series_name(name: str) -> bool:
+    """True if RTN parses the name as TV: any season/episode, or a 'complete'
+    collection. RTN handles every format (S01E05, 3x02, Season 1, Complete
+    Series, absolute numbering, ...) — far more robust than a regex."""
+    try:
+        p = parse(name)
+        return bool(p.seasons or p.episodes or getattr(p, "complete", False))
+    except Exception:
+        return False
 
 
 def _detect_type(name: str, files: list) -> str:
-    """Detect if content is a movie or series based on name and file count."""
-    if _SERIES_PATTERN.search(name):
+    """Detect movie vs series using the RTN parser (not a regex), so single
+    episodes in any naming format land under Shows, not Movies."""
+    if _is_series_name(name):
         return "series"
+    # Fallback: a folder of multiple episode-like files is a series.
     if len(files) > 1:
-        episode_files = sum(1 for f in files if _SERIES_PATTERN.search(f.get("name", "")))
+        episode_files = sum(1 for f in files if _is_series_name(f.get("name", "")))
         if episode_files > 1:
             return "series"
     return "movie"
