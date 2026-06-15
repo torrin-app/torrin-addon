@@ -295,15 +295,21 @@ async def _get_poster(name: str, content_type: str, imdb_id: str = "") -> str | 
 
 import re
 
+_COMPLETE_SERIES = re.compile(r'complete\s+(series|seasons?|collection|show)', re.IGNORECASE)
+
+
 def _is_series_name(name: str) -> bool:
-    """True if RTN parses the name as TV: any season/episode, or a 'complete'
-    collection. RTN handles every format (S01E05, 3x02, Season 1, Complete
-    Series, absolute numbering, ...) — far more robust than a regex."""
+    """True if the name is TV. Primary signal is RTN's parsed season/episode
+    (handles S01E05, 3x02, Season 1-5, absolute numbering, ...). RTN's bare
+    `complete` flag is too greedy (matches 'COMPLETE BluRay' movies), so for the
+    season-less 'Complete Series/Collection' case we require that explicit phrase."""
     try:
         p = parse(name)
-        return bool(p.seasons or p.episodes or getattr(p, "complete", False))
+        if p.seasons or p.episodes:
+            return True
     except Exception:
-        return False
+        pass
+    return bool(_COMPLETE_SERIES.search(name))
 
 
 def _detect_type(name: str, files: list) -> str:
