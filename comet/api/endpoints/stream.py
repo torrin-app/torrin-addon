@@ -1015,15 +1015,19 @@ async def stream(
             if kodi_meta is not None:
                 behavior_hints["cometKodiMetaV1"] = kodi_meta
 
-            # Two tiers: ⚡ = instant (already on Torrin's R2), ☁️ = will be
-            # fetched (sitting in a debrid cache, or downloaded on demand).
-            # Ordering below still puts debrid-backed results above raw torrents.
+            # Three tiers:
+            #   ⚡ instant   — already on Torrin's R2
+            #   ☁️ accelerate — cached on a debrid provider (AD/RD/BYOK TB/PM), grabbed fast
+            #   🧲 torrent    — uncached, downloaded on demand (slow)
             cache_tier = torrent.get("cache_tier", "")
             if is_cached and cache_tier == "cached":
                 stream_icon = "⚡"
                 stream_status = "C"
-            else:
+            elif is_cached:
                 stream_icon = "☁️"
+                stream_status = "A"
+            else:
+                stream_icon = "🧲"
                 stream_status = "U"
 
             # Detect season pack: has season but no episode in parsed data.
