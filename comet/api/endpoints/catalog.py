@@ -433,6 +433,21 @@ def _parse_se(name: str) -> tuple[int, int] | None:
         return int(m.group(1)), int(m.group(2))
     return None
 
+
+def _episode_files(item: dict) -> list[tuple[dict, tuple[int, int]]]:
+    """Episode video files of a torrent as (file, (season, episode)). Handles both
+    season packs (per-file S##E##) and single-episode torrents whose file isn't
+    named with S##E## (falls back to the torrent name + largest file)."""
+    files = item.get("files", [])
+    per_file = [(f, _parse_se(f.get("name", ""))) for f in files]
+    per_file = [(f, se) for (f, se) in per_file if se]
+    if not per_file and files:
+        se = _parse_se(item.get("name", ""))
+        if se:
+            largest = max(files, key=lambda f: f.get("size", 0))
+            per_file = [(largest, se)]
+    return per_file
+
 # TMDB show metadata cache.
 _tmdb_show_cache: dict[str, dict | None] = {}
 _tmdb_ep_cache: dict[str, dict | None] = {}
@@ -564,37 +579,24 @@ async def _get_show_meta(api_key: str, store_name: str, slug: str) -> dict | Non
         meta["poster"] = poster
         meta["background"] = poster
 
-    # Collect episodes, deduping by (season, episode) and keeping the largest file.
+    # One video per (season, episode) so an episode shows ONCE. The id is
+    # episode-level (torrin:ep:<slug>:<s>:<e>), not file-level, so clicking it
+    # surfaces EVERY cached copy (1080p, 720p, ...) as selectable streams.
     by_se: dict[tuple[int, int], dict] = {}
     for it in matching:
-        h = it["hash"]
-        files = it.get("files", [])
-        per_file = [(f, _parse_se(f.get("name", ""))) for f in files]
-        per_file = [(f, se) for (f, se) in per_file if se]
-        if not per_file and files:
-            # Single-episode torrent whose file isn't named with S##E##: take the
-            # season/episode from the torrent name, mapped to its largest file.
-            se = _parse_se(it.get("name", ""))
-            if se:
-                largest = max(files, key=lambda f: f.get("size", 0))
-                per_file = [(largest, se)]
-        for f, (season, episode) in per_file:
-            size = f.get("size", 0)
-            prev = by_se.get((season, episode))
-            if prev and prev["_size"] >= size:
+        for f, (season, episode) in _episode_files(it):
+            key = (season, episode)
+            if key in by_se:
                 continue
-            by_se[(season, episode)] = {
-                "id": f"torrin:{h}:{f.get('index', 0)}",
+            by_se[key] = {
+                "id": f"torrin:ep:{slug}:{season}:{episode}",
                 "title": f.get("name", ""),
                 "season": season,
                 "episode": episode,
                 "released": it.get("added_at", ""),
-                "_size": size,
             }
 
     videos = sorted(by_se.values(), key=lambda v: (v["season"], v["episode"]))
-    for v in videos:
-        v.pop("_size", None)
     meta["videos"] = videos
 
     # Enrich show + episodes from TMDB (description, genres, ep titles/thumbnails).
@@ -699,6 +701,45 @@ async def _get_library_meta(api_key: str, store_name: str, info_hash: str) -> di
                                     v["thumbnail"] = ep_data["thumbnail"]
             return meta
     return None
+
+
+async def _get_episode_streams(api_key: str, store_name: str, slug: str, season: int, episode: int) -> list[dict]:
+    """Every cached copy (quality) of one episode of a grouped show, as streams,
+    so the user picks 1080p vs 720p etc. instead of being stuck with one."""
+    items = await _fetch_user_magnets(api_key, store_name)
+    streams = []
+    seen_links = set()
+    for it in items:
+        if it.get("status") != "downloaded" or not it.get("name"):
+            continue
+        if _detect_type(it.get("name", ""), it.get("files", [])) != "series":
+            continue
+        if _show_slug(it.get("name", "")) != slug:
+            continue
+        for f, se in _episode_files(it):
+            if se != (season, episode):
+                continue
+            link = f.get("link", "")
+            fname = f.get("name", "")
+            if not link or not fname or link in seen_links:
+                continue
+            seen_links.add(link)
+            size = f.get("size", 0)
+            size_str = ""
+            if size > 1_000_000_000:
+                size_str = f" | {size / 1_000_000_000:.1f} GB"
+            elif size > 1_000_000:
+                size_str = f" | {size / 1_000_000:.0f} MB"
+            streams.append({
+                "name": "Torrin",
+                "description": f"{fname}{size_str}",
+                "url": link,
+                "behaviorHints": {
+                    "bingeGroup": f"torrin|{slug}",
+                    "filename": fname,
+                },
+            })
+    return streams
 
 
 async def _get_library_streams(api_key: str, store_name: str, info_hash: str, file_idx: int | None = None) -> list[dict]:
@@ -905,11 +946,21 @@ async def library_stream(type: str, torrin_id: str, b64config: str):
         return {"streams": []}
     entry = debrid_entries[0]
 
-    # Parse torrin_id: "HASH" for movies, "HASH:INDEX" for episodes.
+    # Parse torrin_id:
+    #   "ep:<slug>:<season>:<episode>" -> every cached copy of that episode
+    #   "HASH:INDEX"                   -> one specific file
+    #   "HASH"                         -> a movie
     parts = torrin_id.split(":")
+    if len(parts) >= 4 and parts[0] == "ep":
+        try:
+            season, episode = int(parts[2]), int(parts[3])
+        except ValueError:
+            return {"streams": []}
+        streams = await _get_episode_streams(entry["apiKey"], entry["service"], parts[1], season, episode)
+        return {"streams": streams}
+
     info_hash = parts[0]
     file_idx = int(parts[1]) if len(parts) > 1 else None
-
     streams = await _get_library_streams(entry["apiKey"], entry["service"], info_hash, file_idx)
     return {"streams": streams}
 
