@@ -325,13 +325,37 @@ def _detect_type(name: str, files: list) -> str:
     return "movie"
 
 
+def _show_slug(name: str) -> str:
+    """Stable slug used to group all of a show's episodes under one catalog
+    entry, derived from RTN's parsed title so 'My.Royal.Nemesis.S01E08...' and
+    'My Royal Nemesis S01E11...' collapse to the same show."""
+    try:
+        title = parse(name).parsed_title or name
+    except Exception:
+        title = name
+    return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-") or "show"
+
+
+def _clean_show_title(name: str) -> str:
+    """Human-readable show title from a release name (drops S##E##/quality junk)."""
+    try:
+        return parse(name).parsed_title or name
+    except Exception:
+        return name
+
+
 async def _get_library(api_key: str, store_name: str, filter_type: str = "") -> list[dict]:
-    """Fetch user's cached content and return as catalog metas with torrin: prefix."""
+    """Fetch user's cached content and return as catalog metas with torrin: prefix.
+    Movies are one meta per torrent; series episodes are GROUPED into a single
+    show entry (id `torrin:show:<slug>`) so a season's worth of episodes shows as
+    one clickable show, not scattered rows."""
     items = await _fetch_user_magnets(api_key, store_name)
 
     metas = []
     poster_tasks = []
     seen_hashes = set()
+    shows: dict[str, dict] = {}  # slug -> {title, imdb_id}
+    show_order: list[str] = []
     for item in items:
         if item.get("status") != "downloaded":
             continue
@@ -346,17 +370,39 @@ async def _get_library(api_key: str, store_name: str, filter_type: str = "") -> 
         if filter_type and content_type != filter_type:
             continue
 
+        imdb_id = item.get("imdb_id", "")
+
+        if content_type == "series":
+            # Collapse every episode/season-pack of the same show into one entry.
+            slug = _show_slug(name)
+            if slug not in shows:
+                shows[slug] = {"title": _clean_show_title(name), "imdb_id": ""}
+                show_order.append(slug)
+            if not shows[slug]["imdb_id"] and imdb_id.startswith("tt"):
+                shows[slug]["imdb_id"] = imdb_id
+            continue
+
         meta = {
             "id": f"torrin:{info_hash}",
             "type": content_type,
             "name": name,
         }
-
-        imdb_id = item.get("imdb_id", "")
-        if imdb_id and imdb_id.startswith("tt"):
+        if imdb_id.startswith("tt"):
             meta["imdb_id"] = imdb_id
         poster_tasks.append((len(metas), _get_poster(name, content_type, imdb_id)))
+        metas.append(meta)
 
+    # One meta per grouped show.
+    for slug in show_order:
+        s = shows[slug]
+        meta = {
+            "id": f"torrin:show:{slug}",
+            "type": "series",
+            "name": s["title"],
+        }
+        if s["imdb_id"]:
+            meta["imdb_id"] = s["imdb_id"]
+        poster_tasks.append((len(metas), _get_poster(s["title"], "series", s["imdb_id"])))
         metas.append(meta)
 
     # Fetch posters in parallel.
@@ -371,6 +417,21 @@ async def _get_library(api_key: str, store_name: str, filter_type: str = "") -> 
 
 
 _EP_PATTERN = re.compile(r'[Ss](\d{1,2})[Ee](\d{1,2})')
+
+
+def _parse_se(name: str) -> tuple[int, int] | None:
+    """Season+episode from a name via RTN (handles S01E05, 3x02, ...), with an
+    S##E## regex fallback. Returns None for non-episode files (extras/samples)."""
+    try:
+        p = parse(name)
+        if p.seasons and p.episodes:
+            return p.seasons[0], p.episodes[0]
+    except Exception:
+        pass
+    m = _EP_PATTERN.search(name)
+    if m:
+        return int(m.group(1)), int(m.group(2))
+    return None
 
 # TMDB show metadata cache.
 _tmdb_show_cache: dict[str, dict | None] = {}
@@ -473,8 +534,98 @@ async def _fetch_tmdb_episode(tmdb_id: int, season: int, episode: int) -> dict |
         return None
 
 
+async def _get_show_meta(api_key: str, store_name: str, slug: str) -> dict | None:
+    """Build one series meta for a grouped show: gathers every episode across all
+    of the user's matching torrents (single episodes AND season packs) into one
+    season/episode list. Each episode video keeps its own `torrin:<hash>:<idx>`
+    id, which the existing stream handler resolves to that file's R2 link."""
+    items = await _fetch_user_magnets(api_key, store_name)
+    matching = [
+        it for it in items
+        if it.get("status") == "downloaded"
+        and it.get("name")
+        and _detect_type(it.get("name", ""), it.get("files", [])) == "series"
+        and _show_slug(it.get("name", "")) == slug
+    ]
+    if not matching:
+        return None
+
+    title = _clean_show_title(matching[0]["name"])
+    imdb_id = next(
+        (it.get("imdb_id", "") for it in matching if it.get("imdb_id", "").startswith("tt")),
+        "",
+    )
+
+    meta: dict = {"id": f"torrin:show:{slug}", "type": "series", "name": title}
+    if imdb_id:
+        meta["imdb_id"] = imdb_id
+    poster = await _get_poster(title, "series", imdb_id)
+    if poster:
+        meta["poster"] = poster
+        meta["background"] = poster
+
+    # Collect episodes, deduping by (season, episode) and keeping the largest file.
+    by_se: dict[tuple[int, int], dict] = {}
+    for it in matching:
+        h = it["hash"]
+        files = it.get("files", [])
+        per_file = [(f, _parse_se(f.get("name", ""))) for f in files]
+        per_file = [(f, se) for (f, se) in per_file if se]
+        if not per_file and files:
+            # Single-episode torrent whose file isn't named with S##E##: take the
+            # season/episode from the torrent name, mapped to its largest file.
+            se = _parse_se(it.get("name", ""))
+            if se:
+                largest = max(files, key=lambda f: f.get("size", 0))
+                per_file = [(largest, se)]
+        for f, (season, episode) in per_file:
+            size = f.get("size", 0)
+            prev = by_se.get((season, episode))
+            if prev and prev["_size"] >= size:
+                continue
+            by_se[(season, episode)] = {
+                "id": f"torrin:{h}:{f.get('index', 0)}",
+                "title": f.get("name", ""),
+                "season": season,
+                "episode": episode,
+                "released": it.get("added_at", ""),
+                "_size": size,
+            }
+
+    videos = sorted(by_se.values(), key=lambda v: (v["season"], v["episode"]))
+    for v in videos:
+        v.pop("_size", None)
+    meta["videos"] = videos
+
+    # Enrich show + episodes from TMDB (description, genres, ep titles/thumbnails).
+    tmdb_meta = await _fetch_tmdb_show_meta(title)
+    if tmdb_meta:
+        if tmdb_meta.get("overview"):
+            meta["description"] = tmdb_meta["overview"]
+        if tmdb_meta.get("genres"):
+            meta["genres"] = tmdb_meta["genres"]
+        if tmdb_meta.get("releaseInfo"):
+            meta["releaseInfo"] = tmdb_meta["releaseInfo"]
+        tmdb_id = tmdb_meta.get("tmdb_id")
+        if tmdb_id and videos:
+            ep_results = await asyncio.gather(
+                *[_fetch_tmdb_episode(tmdb_id, v["season"], v["episode"]) for v in videos]
+            )
+            for v, ep_data in zip(videos, ep_results):
+                if ep_data:
+                    if ep_data.get("name"):
+                        v["title"] = ep_data["name"]
+                    if ep_data.get("overview"):
+                        v["overview"] = ep_data["overview"]
+                    if ep_data.get("thumbnail"):
+                        v["thumbnail"] = ep_data["thumbnail"]
+    return meta
+
+
 async def _get_library_meta(api_key: str, store_name: str, info_hash: str) -> dict | None:
-    """Get meta for a single library item by hash."""
+    """Get meta for a single library item by hash (or a grouped show)."""
+    if info_hash.startswith("show:"):
+        return await _get_show_meta(api_key, store_name, info_hash[5:])
     items = await _fetch_user_magnets(api_key, store_name)
     for item in items:
         if item.get("hash") == info_hash and item.get("status") == "downloaded":
