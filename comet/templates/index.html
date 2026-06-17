@@ -1013,6 +1013,12 @@
       </sl-details>
 
       <div class="centered-item">
+        <sl-button id="save-config" variant="primary">Save</sl-button>
+        <sl-alert id="saveAlert" variant="success" duration="3000" closable>
+          <sl-icon slot="icon" name="check2-circle"></sl-icon>
+          <strong id="saveAlertText">Saved. Your installed add-on will use the new settings.</strong>
+        </sl-alert>
+
         <sl-button id="install" variant="neutral">Install</sl-button>
         <sl-alert id="installAlert" variant="neutral" duration="3000" closable>
           <sl-icon slot="icon" name="clipboard2-check"></sl-icon>
@@ -1244,6 +1250,9 @@
             });
           }
 
+          const saveButton = document.querySelector("#save-config");
+          const saveAlert = document.querySelector("#saveAlert");
+          const saveAlertText = document.querySelector("#saveAlertText");
           const installButton = document.querySelector("#install");
           const installAlert = document.querySelector('#installAlert');
           const copyLinkButton = document.querySelector("#copy-link");
@@ -1486,6 +1495,41 @@
             document.execCommand("copy");
             document.body.removeChild(textArea);
           }
+
+          // Persist the current settings under the stable token without
+          // reinstalling. The installed addon reads the new config on its next
+          // fetch. Locks the page URL to the token so a refresh shows the saved
+          // state and future edits stay on the same link.
+          saveButton.addEventListener("click", async () => {
+            const settings = getSettings();
+            if (isDefaultConfig(settings)) {
+              saveAlertText.textContent =
+                "This is the default config, there are no custom settings to save.";
+              saveAlert.toast();
+              return;
+            }
+
+            saveButton.loading = true;
+            try {
+              const token = await ensureConfigToken(settings);
+              if (!token) {
+                saveAlertText.textContent = "Failed to save, please try again.";
+                saveAlert.toast();
+                return;
+              }
+
+              const newPath = `${stremioApiPrefix}/${token}/configure`;
+              if (window.location.pathname !== newPath) {
+                window.history.replaceState(null, "", newPath);
+              }
+
+              saveAlertText.textContent =
+                "Saved. Your installed add-on will use the new settings.";
+              saveAlert.toast();
+            } finally {
+              saveButton.loading = false;
+            }
+          });
 
           copyLinkButton.addEventListener("click", async () => {
             const settings = getSettings();
