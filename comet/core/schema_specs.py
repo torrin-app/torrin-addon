@@ -179,6 +179,18 @@ KODI_SETUP_CODES_TABLE_SPEC = ManagedTableSpec(
     ),
 )
 
+ADDON_CONFIGS_TABLE_SPEC = ManagedTableSpec(
+    table_name="addon_configs",
+    create_sql="""
+        CREATE TABLE {table_name} (
+            token TEXT PRIMARY KEY,
+            config_b64 TEXT NOT NULL,
+            created_at REAL NOT NULL,
+            updated_at REAL NOT NULL
+        )
+    """,
+)
+
 MEDIA_METADATA_CACHE_TABLE_SPEC = ManagedTableSpec(
     table_name="media_metadata_cache",
     create_sql="""

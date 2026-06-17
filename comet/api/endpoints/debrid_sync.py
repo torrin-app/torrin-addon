@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request
 
-from comet.core.config_validation import config_check
+from comet.core.config_validation import resolve_config
 from comet.core.logger import logger
 from comet.debrid.manager import get_debrid_credentials
 from comet.services.debrid_account_scraper import trigger_account_snapshot_sync
@@ -23,7 +23,7 @@ async def debrid_sync(
     b64config: str,
     service_index: str,
 ):
-    config = config_check(b64config, strict_b64config=True)
+    config = await resolve_config(b64config, strict_b64config=True)
     if not config:
         return build_status_video_response(["BAD_REQUEST"], default_key="BAD_REQUEST")
 

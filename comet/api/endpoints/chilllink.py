@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, Query, Request
 
 from comet.api.endpoints.stream import stream as get_streams
-from comet.core.config_validation import config_check
+from comet.core.config_validation import resolve_config
 from comet.core.models import settings
 from comet.debrid.manager import build_addon_name
 
@@ -23,7 +23,7 @@ router = APIRouter()
     description="Returns the add-on manifest with existing configuration.",
 )
 async def chilllink_manifest(request: Request, b64config: str = None):
-    config = config_check(b64config, strict_b64config=True)
+    config = await resolve_config(b64config, strict_b64config=True)
 
     manifest = {
         "id": settings.ADDON_ID,
@@ -64,7 +64,7 @@ async def chilllink_streams(
     episode: Optional[int] = Query(None),
     b64config: Optional[str] = None,
 ):
-    config = config_check(b64config, strict_b64config=True)
+    config = await resolve_config(b64config, strict_b64config=True)
     if not config:
         return {
             "sources": [

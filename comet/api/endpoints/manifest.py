@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request
 
-from comet.core.config_validation import config_check
+from comet.core.config_validation import resolve_config
 from comet.core.models import settings
 from comet.api.endpoints.catalog import CATALOG_DEFS, LIBRARY_CATALOGS, SPORTS_CATALOGS, SPORTS_ENABLED
 from comet.debrid.manager import build_addon_name
@@ -47,7 +47,7 @@ async def manifest(request: Request, b64config: str = None):
         "stremioAddonsConfig": {"issuer": "https://stremio-addons.net", "signature": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0..pacLbjk6PCw-rGbAKxABMw.9tB9oPOHrlU8K4CaFVStwG61osNaAi5sLj8G2UfMaSaSwyWIUTCWsoHkcSj5H1m-GKEO7f1gaXmV06JL3FYugBc592VrbLAVRYiEDHr5Bn6qWkvqsSSAfUJvS3_zGmGw._4xMu0_SKXHCVG616u41mw"},
     }
 
-    config = config_check(b64config, strict_b64config=True)
+    config = await resolve_config(b64config, strict_b64config=True)
     if not config:
         base_manifest["name"] = f"❌ | {settings.ADDON_NAME}"
         base_manifest["description"] = (

@@ -4,7 +4,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, BackgroundTasks, Request
 
-from comet.core.config_validation import config_check
+from comet.core.config_validation import resolve_config
 from comet.core.logger import logger
 from comet.core.models import settings
 from comet.debrid.exceptions import DebridAuthError
@@ -449,7 +449,7 @@ async def stream(
 
     media_id = media_id.replace("imdb_id:", "")
 
-    config = config_check(b64config, strict_b64config=True)
+    config = await resolve_config(b64config, strict_b64config=True)
     if not config:
         error_response = {
             "streams": [

@@ -1,10 +1,11 @@
 import secrets
 
-from fastapi import APIRouter, Cookie, Form, Request
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Body, Cookie, Form, Request
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from comet.core.config_validation import config_check
+from comet.core.config_validation import (get_addon_config_b64, resolve_config,
+                                          save_addon_config)
 from comet.core.models import settings, web_config
 from comet.utils.cache import CachePolicies
 from comet.utils.signed_session import (derive_session_secret,
@@ -135,7 +136,7 @@ async def configure(
         None, description="Configuration page session token"
     ),
 ):
-    if b64config is not None and not config_check(b64config, strict_b64config=True):
+    if b64config is not None and not await resolve_config(b64config, strict_b64config=True):
         return RedirectResponse("/configure", status_code=303)
 
     if CONFIGURE_PAGE_PASSWORD_ENABLED and not _verify_configure_session(
@@ -163,4 +164,59 @@ async def configure(
         response.headers["Cache-Control"] = CachePolicies.configure_page().build()
         response.headers["Vary"] = "Accept, Accept-Encoding"
 
+    return response
+
+
+def _save_config_authorized(configure_session: str | None) -> bool:
+    if not CONFIGURE_PAGE_PASSWORD_ENABLED:
+        return True
+    return bool(_verify_configure_session(configure_session))
+
+
+@router.post(
+    "/save-config",
+    tags=["Configuration"],
+    summary="Save Configuration",
+    description="Persists a configuration server-side and returns a stable token.",
+)
+async def save_config(
+    b64config: str = Body(..., embed=True),
+    token: str | None = Body(None, embed=True),
+    configure_session: str | None = Cookie(
+        None, description="Configuration page session token"
+    ),
+):
+    if not _save_config_authorized(configure_session):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+
+    saved_token = await save_addon_config(b64config, token=token)
+    if not saved_token:
+        return JSONResponse({"error": "invalid config"}, status_code=400)
+
+    response = JSONResponse({"token": saved_token})
+    _apply_private_no_cache(response)
+    return response
+
+
+@router.get(
+    "/{segment}/config-data",
+    tags=["Configuration"],
+    summary="Configuration Data",
+    description="Returns the stored base64 config for a token (used to prefill the configure page).",
+)
+async def config_data(
+    segment: str,
+    configure_session: str | None = Cookie(
+        None, description="Configuration page session token"
+    ),
+):
+    if not _save_config_authorized(configure_session):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+
+    stored_b64 = await get_addon_config_b64(segment)
+    if stored_b64 is None:
+        return JSONResponse({"error": "not found"}, status_code=404)
+
+    response = JSONResponse({"b64config": stored_b64})
+    _apply_private_no_cache(response)
     return response

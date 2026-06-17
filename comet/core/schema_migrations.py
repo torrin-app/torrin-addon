@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 from comet.core.logger import logger
 from comet.core.schema_specs import (ACTIVE_CONNECTIONS_TABLE_SPEC,
+                                     ADDON_CONFIGS_TABLE_SPEC,
                                      ANIME_ENTRIES_TABLE_SPEC,
                                      ANIME_IDS_COPY_SQL, ANIME_IDS_TABLE_SPEC,
                                      ANIME_MAPPING_STATE_TABLE_SPEC,
@@ -916,6 +917,11 @@ async def _migration_series_episode_index_refresh(ctx: MigrationContext):
     return True
 
 
+async def _migration_addon_configs(ctx: MigrationContext):
+    await _ensure_managed_table(ctx, ADDON_CONFIGS_TABLE_SPEC)
+    return True
+
+
 MIGRATIONS = [
     ("2026030901_foundation", _migration_foundation),
     ("2026030902_backfill_canonical_tables", _migration_backfill_canonical_tables),
@@ -928,4 +934,5 @@ MIGRATIONS = [
         "2026031602_series_episode_index_refresh",
         _migration_series_episode_index_refresh,
     ),
+    ("2026061701_addon_configs", _migration_addon_configs),
 ]

@@ -8,7 +8,7 @@ from RTN import parse
 # Live sports/IPTV catalog is gated behind a flag (default off).
 SPORTS_ENABLED = os.getenv("SPORTS_CATALOG_ENABLED", "false").lower() in ("1", "true", "yes")
 
-from comet.core.config_validation import config_check
+from comet.core.config_validation import resolve_config
 from comet.core.logger import logger
 from comet.core.models import settings
 from comet.debrid.manager import get_debrid_credentials
@@ -822,7 +822,7 @@ async def _get_catalog(catalog_id: str, skip: int = 0) -> list[dict]:
 async def catalog(type: str, catalog_id: str, b64config: str = None):
     if catalog_id in ("torrin-library-movies", "torrin-library-series") and b64config:
         filter_type = "movie" if catalog_id == "torrin-library-movies" else "series"
-        config = config_check(b64config, strict_b64config=True)
+        config = await resolve_config(b64config, strict_b64config=True)
         if config:
             debrid_entries = config.get("_debridEntries", [])
             if debrid_entries:
@@ -832,7 +832,7 @@ async def catalog(type: str, catalog_id: str, b64config: str = None):
     if catalog_id == "torrin-sports":
         if not SPORTS_ENABLED:
             return {"metas": []}
-        config = config_check(b64config, strict_b64config=True) if b64config else None
+        config = await resolve_config(b64config, strict_b64config=True) if b64config else None
         if config:
             debrid_entries = config.get("_debridEntries", [])
             if debrid_entries:
@@ -866,7 +866,7 @@ def _parse_sports_extra(extra: str) -> tuple[int, str | None]:
 async def sports_catalog_extra(extra: str, b64config: str):
     if not SPORTS_ENABLED:
         return {"metas": []}
-    config = config_check(b64config, strict_b64config=True)
+    config = await resolve_config(b64config, strict_b64config=True)
     if not config:
         return {"metas": []}
     debrid_entries = config.get("_debridEntries", [])
@@ -891,7 +891,7 @@ async def catalog_skip(type: str, catalog_id: str, skip: int = 0, b64config: str
     if catalog_id == "torrin-sports":
         if not SPORTS_ENABLED:
             return {"metas": []}
-        config = config_check(b64config, strict_b64config=True) if b64config else None
+        config = await resolve_config(b64config, strict_b64config=True) if b64config else None
         if config:
             debrid_entries = config.get("_debridEntries", [])
             if debrid_entries:
@@ -900,7 +900,7 @@ async def catalog_skip(type: str, catalog_id: str, skip: int = 0, b64config: str
         return {"metas": []}
     if catalog_id in ("torrin-library-movies", "torrin-library-series") and b64config:
         filter_type = "movie" if catalog_id == "torrin-library-movies" else "series"
-        config = config_check(b64config, strict_b64config=True)
+        config = await resolve_config(b64config, strict_b64config=True)
         if config:
             debrid_entries = config.get("_debridEntries", [])
             if debrid_entries:
@@ -918,7 +918,7 @@ async def catalog_skip(type: str, catalog_id: str, skip: int = 0, b64config: str
     summary="Library Meta",
 )
 async def library_meta(type: str, info_hash: str, b64config: str):
-    config = config_check(b64config, strict_b64config=True)
+    config = await resolve_config(b64config, strict_b64config=True)
     if not config:
         return {"meta": None}
     debrid_entries = config.get("_debridEntries", [])
@@ -938,7 +938,7 @@ async def library_meta(type: str, info_hash: str, b64config: str):
     summary="Library Stream",
 )
 async def library_stream(type: str, torrin_id: str, b64config: str):
-    config = config_check(b64config, strict_b64config=True)
+    config = await resolve_config(b64config, strict_b64config=True)
     if not config:
         return {"streams": []}
     debrid_entries = config.get("_debridEntries", [])
@@ -974,7 +974,7 @@ async def library_stream(type: str, torrin_id: str, b64config: str):
 async def sports_meta(stream_id: str, b64config: str):
     if not SPORTS_ENABLED:
         return {"meta": None}
-    config = config_check(b64config, strict_b64config=True)
+    config = await resolve_config(b64config, strict_b64config=True)
     if not config:
         return {"meta": None}
     debrid_entries = config.get("_debridEntries", [])
@@ -996,7 +996,7 @@ async def sports_meta(stream_id: str, b64config: str):
 async def sports_stream(stream_id: str, b64config: str):
     if not SPORTS_ENABLED:
         return {"streams": []}
-    config = config_check(b64config, strict_b64config=True)
+    config = await resolve_config(b64config, strict_b64config=True)
     if not config:
         return {"streams": []}
     debrid_entries = config.get("_debridEntries", [])

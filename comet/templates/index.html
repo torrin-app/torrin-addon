@@ -1156,12 +1156,14 @@
           updateResultFormatPreview();
 
           // try populate the form from previous settings
-          try {
-            const settings = getSettingsFromUrl();
-            if (settings != null) { populateFormFromSettings(settings); }
-          } catch (error) {
-            console.log("Failed to retrieve or parse settings from URL:", error);
-          }
+          (async () => {
+            try {
+              const settings = await getSettingsFromUrl();
+              if (settings != null) { populateFormFromSettings(settings); }
+            } catch (error) {
+              console.log("Failed to retrieve or parse settings from URL:", error);
+            }
+          })();
 
           // Populate language selects
           populateSelect("languages_required", Object.keys(languagesEmojis));
@@ -1406,8 +1408,40 @@
             return true;
           }
 
-          // Generate the manifest URL - use /manifest.json for default configs
-          function getManifestUrl(settings, forInstall = false) {
+          // The stable config token currently in the URL, if any (reconfigure).
+          function getCurrentConfigToken() {
+            const segments = window.location.pathname.split("/").filter(Boolean);
+            const configureIndex = segments.lastIndexOf("configure");
+            if (configureIndex <= 0) return null;
+            const segment = decodeURIComponent(segments[configureIndex - 1]);
+            return segment.startsWith("cfg_") ? segment : null;
+          }
+
+          // Persist a custom config server-side and return a stable token.
+          // Reuses the token already in the URL (reconfigure) so the install
+          // link never changes. Returns null on failure so callers fall back
+          // to the legacy inline-b64 URL.
+          async function ensureConfigToken(settings) {
+            try {
+              const b64config = btoa(JSON.stringify(settings));
+              const currentToken = getCurrentConfigToken();
+              const response = await fetch(`${stremioApiPrefix}/save-config`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ b64config: b64config, token: currentToken }),
+              });
+              if (!response.ok) return null;
+              const data = await response.json();
+              return data.token || null;
+            } catch (error) {
+              console.log("Failed to save config server-side:", error);
+              return null;
+            }
+          }
+
+          // Generate the manifest URL - use /manifest.json for default configs,
+          // a stable token URL for custom configs (no reinstall on edits).
+          async function getManifestUrl(settings, forInstall = false) {
             const isDefault = isDefaultConfig(settings);
             const host = window.location.host;
 
@@ -1416,43 +1450,54 @@
               return forInstall
                 ? `stremio://${host}${stremioApiPrefix}/manifest.json`
                 : `${window.location.origin}${stremioApiPrefix}/manifest.json`;
-            } else {
-              // Custom config: use b64config in URL
-              const settingsString = btoa(JSON.stringify(settings));
-              return forInstall
-                ? `stremio://${host}${stremioApiPrefix}/${settingsString}/manifest.json`
-                : `${window.location.origin}${stremioApiPrefix}/${settingsString}/manifest.json`;
             }
+
+            // Custom config: persist under a stable token, fall back to inline b64.
+            const token = await ensureConfigToken(settings);
+            const segment = token || btoa(JSON.stringify(settings));
+            return forInstall
+              ? `stremio://${host}${stremioApiPrefix}/${segment}/manifest.json`
+              : `${window.location.origin}${stremioApiPrefix}/${segment}/manifest.json`;
           }
 
-          function getKodiManifestUrl(settings) {
+          async function getKodiManifestUrl(settings) {
             if (isDefaultConfig(settings)) {
               return `${window.location.origin}${stremioApiPrefix}/manifest.json`;
             }
-            const settingsString = btoa(JSON.stringify(settings));
-            return `${window.location.origin}${stremioApiPrefix}/${settingsString}/manifest.json`;
+            const token = await ensureConfigToken(settings);
+            const segment = token || btoa(JSON.stringify(settings));
+            return `${window.location.origin}${stremioApiPrefix}/${segment}/manifest.json`;
           }
 
-          copyLinkButton.addEventListener("click", () => {
-            const settings = getSettings();
-            const manifestUrl = getManifestUrl(settings, false);
-
+          async function copyTextToClipboard(text) {
+            try {
+              if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+                return;
+              }
+            } catch (error) {
+              console.log("Clipboard API failed, falling back:", error);
+            }
             const textArea = document.createElement("textarea");
-            textArea.value = manifestUrl;
+            textArea.value = text;
             document.body.appendChild(textArea);
             textArea.focus();
             textArea.select();
             document.execCommand("copy");
             document.body.removeChild(textArea);
+          }
 
+          copyLinkButton.addEventListener("click", async () => {
+            const settings = getSettings();
+            const manifestUrl = await getManifestUrl(settings, false);
+            await copyTextToClipboard(manifestUrl);
             console.log(`Copied manifest URL: ${manifestUrl}`);
-
             copyAlert.toast();
           });
 
-          installButton.addEventListener("click", () => {
+          installButton.addEventListener("click", async () => {
             const settings = getSettings();
-            const manifestUrl = getManifestUrl(settings, true);
+            const manifestUrl = await getManifestUrl(settings, true);
             window.location.href = manifestUrl;
             console.log(`Installing manifest URL: ${manifestUrl}`);
             installAlert.toast();
@@ -1466,7 +1511,7 @@
             }
 
             const settings = getSettings();
-            const manifestUrl = getKodiManifestUrl(settings);
+            const manifestUrl = await getKodiManifestUrl(settings);
 
             const response = await fetch("/kodi/associate_manifest", {
               method: "POST",
@@ -1545,20 +1590,41 @@
             }
           });
 
-          function getSettingsFromUrl() {
+          function getConfigSegmentFromUrl() {
             const segments = window.location.pathname.split("/").filter(Boolean);
             const configureIndex = segments.lastIndexOf("configure");
             if (configureIndex <= 0) {
               return null;
             }
+            const segment = decodeURIComponent(segments[configureIndex - 1]);
+            return segment || null;
+          }
 
-            const settingsString = decodeURIComponent(segments[configureIndex - 1]);
-            if (!settingsString) {
+          // Resolve the config in the URL to a settings object. A stable token
+          // (cfg_...) is fetched from the server; a legacy inline-b64 segment is
+          // decoded locally.
+          async function getSettingsFromUrl() {
+            const segment = getConfigSegmentFromUrl();
+            if (!segment) {
               return null;
             }
 
+            let b64config = segment;
+            if (segment.startsWith("cfg_")) {
+              try {
+                const response = await fetch(
+                  `${stremioApiPrefix}/${encodeURIComponent(segment)}/config-data`
+                );
+                if (!response.ok) return null;
+                const data = await response.json();
+                b64config = data.b64config;
+              } catch (_) {
+                return null;
+              }
+            }
+
             try {
-              return JSON.parse(atob(settingsString));
+              return JSON.parse(atob(b64config));
             } catch (_) {
               return null;
             }

@@ -5,7 +5,7 @@ import orjson
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import RedirectResponse
 
-from comet.core.config_validation import config_check
+from comet.core.config_validation import resolve_config
 from comet.core.database import (DOWNLOAD_LINK_CACHE_TTL,
                                  build_scope_lookup_params, build_scope_params,
                                  database)
@@ -96,7 +96,7 @@ async def playback(
     name: str = Query(),
     media_id: str | None = Query(default=None),
 ):
-    config = config_check(b64config, strict_b64config=True)
+    config = await resolve_config(b64config, strict_b64config=True)
     if not config:
         return build_status_video_response(
             ["BAD_REQUEST"],
