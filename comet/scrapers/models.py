@@ -12,6 +12,7 @@ class ScrapeRequest(BaseModel):
     year_end: Optional[int] = None
     season: Optional[int] = None
     episode: Optional[int] = None
+    aliases: Optional[dict] = None  # alternate titles, e.g. {"ez": ["Ace of Diamond", ...]}
     context: str = "live"  # "live" or "background"
 
 

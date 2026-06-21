@@ -25,19 +25,29 @@ class TorrinCacheScraper(BaseScraper):
         try:
             from urllib.parse import urlencode
 
-            query = {"imdb": request.media_only_id}
-            # Title (+ year) lets Torrin surface cached content that has no imdb tag
-            # (usenet, hoster, manual adds) by matching the release name instead.
+            params = [("imdb", request.media_only_id)]
+            # Title (+ aliases) lets Torrin surface cached content that has no imdb tag
+            # (usenet, hoster, manual adds) by matching the release name instead. Alias
+            # titles matter for anime (romaji vs english, e.g. "Diamond no Ace" cached
+            # as "Ace of the Diamond") and any AKA-titled content. Send all variants.
+            titles = []
             if request.title:
-                query["title"] = request.title
+                titles.append(request.title)
+            if request.aliases:
+                titles.extend(request.aliases.get("ez", []))
+            seen_titles = set()
+            for t in titles:
+                if t and t not in seen_titles:
+                    seen_titles.add(t)
+                    params.append(("title", t))
             if request.year:
-                query["year"] = request.year
+                params.append(("year", request.year))
             if request.media_type == "series":
-                query["season"] = request.season
-                query["episode"] = request.episode
+                params.append(("season", request.season))
+                params.append(("episode", request.episode))
 
             response = await self.session.get(
-                f"{self.url}/api/search?{urlencode(query)}",
+                f"{self.url}/api/search?{urlencode(params)}",
                 headers={"Authorization": f"Bearer {key}"},
             )
             data = await response.json()
