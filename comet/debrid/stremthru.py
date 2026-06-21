@@ -194,10 +194,17 @@ class StremThru:
         try:
             url = f"{self.base_url}/magnets/check?magnet={','.join(magnets)}&client_ip={self.client_ip}&sid={self.sid}"
             magnet = await self.session.get(url, headers=self._headers())
-            return await magnet.json()
+            data = await magnet.json()
+            items = (data or {}).get("data", {}).get("items", [])
+            logger.log(
+                "SCRAPER",
+                f"[get_instant] store={self.store_name} sid={self.sid} n={len(magnets)} http={magnet.status} "
+                f"statuses={[(i.get('hash','')[:8], i.get('status'), len(i.get('files') or [])) for i in items][:6]}",
+            )
+            return data
         except Exception as e:
             logger.warning(
-                f"Exception while checking hash instant availability on {self.store_name}: {e}"
+                f"[get_instant] EXCEPTION store={self.store_name} sid={self.sid} n={len(magnets)}: {e}"
             )
 
     async def list_magnets(self, limit: int = 500, offset: int = 0):
