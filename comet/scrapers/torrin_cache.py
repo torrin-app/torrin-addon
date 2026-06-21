@@ -23,12 +23,21 @@ class TorrinCacheScraper(BaseScraper):
             return torrents
 
         try:
-            params = f"imdb={request.media_only_id}"
+            from urllib.parse import urlencode
+
+            query = {"imdb": request.media_only_id}
+            # Title (+ year) lets Torrin surface cached content that has no imdb tag
+            # (usenet, hoster, manual adds) by matching the release name instead.
+            if request.title:
+                query["title"] = request.title
+            if request.year:
+                query["year"] = request.year
             if request.media_type == "series":
-                params += f"&season={request.season}&episode={request.episode}"
+                query["season"] = request.season
+                query["episode"] = request.episode
 
             response = await self.session.get(
-                f"{self.url}/api/search?{params}",
+                f"{self.url}/api/search?{urlencode(query)}",
                 headers={"Authorization": f"Bearer {key}"},
             )
             data = await response.json()
