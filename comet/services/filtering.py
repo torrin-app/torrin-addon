@@ -246,15 +246,21 @@ def filter_worker(
             _log_exclusion(f"❌ Rejected (No Parsed Title) | {torrent_title}")
             continue
 
-        alias_matched = ez_aliases_normalized and quick_alias_match(
-            scrub(torrent_title), ez_aliases_normalized
-        )
-        if not alias_matched:
-            if not title_match(title, parsed.parsed_title, aliases=aliases):
-                _log_exclusion(
-                    f"❌ Rejected (Title Mismatch) | {torrent_title} | Parsed: {parsed.parsed_title} | Expected: {title}"
-                )
-                continue
+        # Torrin niche-fill results are already matched to the requested title
+        # server-side (by imdb + normalized title), so skip Comet's title/alias
+        # re-check. RTN mangles anime release names ("Ace of the Diamond" parses to
+        # "Ace of the") and anime has no aliases here, so this re-check would wrongly
+        # drop genuinely-matching cached content. Trust the Torrin tracker.
+        if torrent.get("tracker") != "Torrin":
+            alias_matched = ez_aliases_normalized and quick_alias_match(
+                scrub(torrent_title), ez_aliases_normalized
+            )
+            if not alias_matched:
+                if not title_match(title, parsed.parsed_title, aliases=aliases):
+                    _log_exclusion(
+                        f"❌ Rejected (Title Mismatch) | {torrent_title} | Parsed: {parsed.parsed_title} | Expected: {title}"
+                    )
+                    continue
 
         if year and parsed.year:
             if not (min_year <= parsed.year <= max_year):

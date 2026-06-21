@@ -46,17 +46,11 @@ class TorrinCacheScraper(BaseScraper):
                 params.append(("season", request.season))
                 params.append(("episode", request.episode))
 
-            query_url = f"{self.url}/api/search?{urlencode(params)}"
-            logger.log("SCRAPER", f"[TorrinCache] GET {query_url}")
             response = await self.session.get(
-                query_url,
+                f"{self.url}/api/search?{urlencode(params)}",
                 headers={"Authorization": f"Bearer {key}"},
             )
             data = await response.json()
-            logger.log(
-                "SCRAPER",
-                f"[TorrinCache] status={response.status} count={data.get('count')} title={request.title!r} s={request.season} e={request.episode}",
-            )
 
             for result in data.get("results", []):
                 info_hash = (result.get("info_hash") or "").lower()
@@ -64,9 +58,17 @@ class TorrinCacheScraper(BaseScraper):
                     continue
                 files = result.get("files") or []
                 file_index = files[0].get("index") if files else None
+                # Title with the MATCHED FILE name, not the pack name. Comet parses
+                # the title to decide whether a result contains the requested episode,
+                # and messy pack names ("...Complete TV Series, Season 1,2,3,4 S01-S04")
+                # mis-parse to episodes [1,2,3,4] and get rejected for any episode > 4.
+                # The matched file name ("...S02 E05...") parses to the right S/E and
+                # passes the scope filter (fileIndex still points to that same file).
+                file_name = files[0].get("file_name") if files else ""
+                title = file_name or result.get("name", "")
                 torrents.append(
                     {
-                        "title": result.get("name", ""),
+                        "title": title,
                         "infoHash": info_hash,
                         "fileIndex": file_index,
                         # Everything from /api/search is already cached in R2 = instant.
