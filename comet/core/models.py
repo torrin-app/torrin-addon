@@ -130,6 +130,9 @@ class AppSettings(BaseSettings):
     ZILEAN_URL: Union[str, List[str]] = "https://zileanfortheweebs.midnightignite.me"
     SCRAPE_STREMTHRU: Union[bool, str] = False
     STREMTHRU_SCRAPE_URL: Union[str, List[str]] = "https://stremthru.13377001.xyz"
+    SCRAPE_TORRINCACHE: Union[bool, str] = False
+    TORRINCACHE_URL: Union[str, List[str]] = "https://api.torrin.app"
+    TORRIN_SEARCH_KEY: Optional[str] = ""
     SCRAPE_DMM: Union[bool, str] = False
     DMM_INGEST_ENABLED: Optional[bool] = False
     DMM_INGEST_INTERVAL: Optional[int] = 86400
