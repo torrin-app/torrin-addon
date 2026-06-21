@@ -69,7 +69,12 @@ class TorrinCacheScraper(BaseScraper):
                         "title": result.get("name", ""),
                         "infoHash": info_hash,
                         "fileIndex": file_index,
-                        "seeders": None,
+                        # Everything from /api/search is already cached in R2 = instant.
+                        # Give it a high seeder count so it ranks well and survives
+                        # Comet's top-N filter + dedup (otherwise seeders=None sinks it
+                        # to the bottom and a non-cached duplicate from another tracker
+                        # gets kept/checked instead, so the cached copy never shows ⚡).
+                        "seeders": 1000,
                         "size": int(result.get("size") or 0),
                         "tracker": "Torrin",
                         "sources": [],
