@@ -46,11 +46,17 @@ class TorrinCacheScraper(BaseScraper):
                 params.append(("season", request.season))
                 params.append(("episode", request.episode))
 
+            query_url = f"{self.url}/api/search?{urlencode(params)}"
+            logger.log("SCRAPER", f"[TorrinCache] GET {query_url}")
             response = await self.session.get(
-                f"{self.url}/api/search?{urlencode(params)}",
+                query_url,
                 headers={"Authorization": f"Bearer {key}"},
             )
             data = await response.json()
+            logger.log(
+                "SCRAPER",
+                f"[TorrinCache] status={response.status} count={data.get('count')} title={request.title!r} s={request.season} e={request.episode}",
+            )
 
             for result in data.get("results", []):
                 info_hash = (result.get("info_hash") or "").lower()
