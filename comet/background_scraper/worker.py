@@ -1200,7 +1200,7 @@ class BackgroundScraperWorker:
                 episode_torrents = len(manager.torrents)
                 success = episode_torrents > 0
                 if success:
-                    await submit_prewarm(media_id, manager.torrents)
+                    await submit_prewarm(media_id, manager.torrents, is_series=True)
             except Exception as e:
                 error_message = str(e)
                 logger.error(
