@@ -1,4 +1,5 @@
 import asyncio
+import os
 import secrets
 import time
 
@@ -9,7 +10,7 @@ from fastapi.templating import Jinja2Templates
 
 from comet.background_scraper.worker import background_scraper
 from comet.core.logger import log_capture, logger
-from comet.core.models import database, settings
+from comet.core.models import IS_SQLITE, database, settings
 from comet.services.bandwidth import bandwidth_monitor
 from comet.utils.formatting import format_bytes
 from comet.utils.signed_session import (derive_session_secret,
@@ -600,3 +601,43 @@ async def admin_background_scraper_requeue_dead(
             "requeued": requeued,
         }
     )
+
+
+@router.get(
+    "/admin/db-health",
+    tags=["Admin"],
+    summary="Comet DB health (internal)",
+    description="Probes comet.db for lock/latency. Authed with Torrin's internal secret; called by Torrin's admin Health tab.",
+)
+async def comet_db_health(request: Request):
+    secret = request.headers.get("X-Internal-Secret", "")
+    if not secret or secret != (settings.TORRIN_PREWARM_SECRET or ""):
+        raise HTTPException(403, "forbidden")
+
+    out = {"name": "comet (comet.db)", "ok": False, "locked": False, "journal_mode": "wal"}
+    t0 = time.time()
+    try:
+        await database.execute("SELECT 1")
+        out["read_ms"] = int((time.time() - t0) * 1000)
+        if IS_SQLITE:
+            t1 = time.time()
+            await database.execute("CREATE TABLE IF NOT EXISTS _healthcheck (id INTEGER PRIMARY KEY, ts TEXT)")
+            await database.execute("INSERT OR REPLACE INTO _healthcheck (id, ts) VALUES (1, datetime('now'))")
+            out["write_ms"] = int((time.time() - t1) * 1000)
+        else:
+            out["journal_mode"] = "postgres"
+        out["ok"] = True
+    except Exception as e:
+        es = str(e).lower()
+        if "locked" in es or "busy" in es:
+            out["locked"] = True
+        out["error"] = str(e)[:120]
+
+    try:
+        wal = "/app/data/comet.db-wal"
+        if os.path.exists(wal):
+            out["wal_mb"] = round(os.path.getsize(wal) / 1e6, 1)
+    except Exception:
+        pass
+
+    return JSONResponse(out)
