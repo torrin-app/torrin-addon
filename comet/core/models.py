@@ -133,6 +133,12 @@ class AppSettings(BaseSettings):
     SCRAPE_TORRINCACHE: Union[bool, str] = False
     TORRINCACHE_URL: Union[str, List[str]] = "https://api.torrin.app"
     TORRIN_SEARCH_KEY: Optional[str] = ""
+    # Pre-warm: when the background scraper finds a good torrent for a popular
+    # title, also tell Torrin to cache the actual file (so the first user gets an
+    # instant stream). Gated by TORRIN_PREWARM; auths with Torrin's internal secret.
+    TORRIN_PREWARM: Union[bool, str] = False
+    TORRIN_PREWARM_URL: Optional[str] = ""
+    TORRIN_PREWARM_SECRET: Optional[str] = ""
     SCRAPE_DMM: Union[bool, str] = False
     DMM_INGEST_ENABLED: Optional[bool] = False
     DMM_INGEST_INTERVAL: Optional[int] = 86400

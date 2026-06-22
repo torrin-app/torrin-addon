@@ -14,6 +14,7 @@ from comet.utils.http_client import http_client_manager
 from comet.utils.year import parse_year_range
 
 from .cinemata_client import CinemataClient
+from .torrin_prewarm import submit_prewarm
 
 LOCK_KEY = "background_scraper_lock"
 LOCK_TTL = 60
@@ -1143,6 +1144,7 @@ class BackgroundScraperWorker:
         torrents_found = len(manager.torrents)
         if torrents_found > 0:
             await self._seed_media_demand(media_id)
+            await submit_prewarm(media_id, manager.torrents)
         return torrents_found
 
     async def _scrape_series(self, item: dict, deadline: float | None) -> int:
@@ -1197,6 +1199,8 @@ class BackgroundScraperWorker:
                 await manager.scrape_torrents()
                 episode_torrents = len(manager.torrents)
                 success = episode_torrents > 0
+                if success:
+                    await submit_prewarm(media_id, manager.torrents)
             except Exception as e:
                 error_message = str(e)
                 logger.error(
