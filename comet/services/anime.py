@@ -535,18 +535,25 @@ class AnimeMapper:
                     if not imdb_id:
                         continue
 
+                    # imdb_id may be a single id or a list of ids (Fribb maps some
+                    # anime to multiple imdb ids). Normalize to strings so Postgres
+                    # gets a TEXT value, not a Python list.
+                    imdb_ids = imdb_id if isinstance(imdb_id, list) else [imdb_id]
+
                     for provider, key in _FRIBB_PROVIDER_ORDER:
                         val = entry.get(key)
                         if val:
                             found_entry_id = lookup_map.get(f"{provider}:{val}")
                             if found_entry_id is not None:
-                                fribb_batch.append(
-                                    {
-                                        "provider": "imdb",
-                                        "provider_id": imdb_id,
-                                        "entry_id": found_entry_id,
-                                    }
-                                )
+                                for iid in imdb_ids:
+                                    if iid:
+                                        fribb_batch.append(
+                                            {
+                                                "provider": "imdb",
+                                                "provider_id": str(iid),
+                                                "entry_id": found_entry_id,
+                                            }
+                                        )
                                 break
 
                     if len(fribb_batch) >= _DB_CHUNK_SIZE:
