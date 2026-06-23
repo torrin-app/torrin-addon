@@ -1163,6 +1163,39 @@ async def stream(
         except Exception as e:
             logger.warning(f"Usenet cache check failed: {e}")
 
+    # Inject Torrin local-library streams (instant, served straight off disk).
+    if settings.TORRIN_LOCAL_ENABLED:
+        try:
+            from comet.services.torrin_local import search_local
+
+            local_results = await search_local(
+                session, title, aliases, year, media_type, search_season, search_episode
+            )
+            for res in local_results:
+                size_gb = (res.get("size") or 0) / 1e9
+                quality = res.get("quality") or res.get("resolution") or "Local"
+                tier = {"local": "NVMe", "cold": "Cold"}.get(
+                    res.get("root", ""), res.get("root", "")
+                )
+                lang = res.get("languages") or ""
+                fn = res.get("filename", "")
+                desc = f"{quality} · {tier} · {size_gb:.1f}GB"
+                if lang:
+                    desc += f" · {lang}"
+                if fn:
+                    desc += f"\n{fn}"
+                final_streams.insert(0, {
+                    "name": _stream_notice_name(kodi, "[Torrin📁]", "[📁] Torrin Local"),
+                    "description": desc,
+                    "url": res.get("url", ""),
+                    "behaviorHints": {
+                        "notWebReady": fn.endswith(".mkv"),
+                        "filename": fn,
+                    },
+                })
+        except Exception as e:
+            logger.warning(f"Local library injection failed: {e}")
+
     has_results = len(final_streams) > 0
 
     return _stream_response(

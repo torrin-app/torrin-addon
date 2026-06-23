@@ -139,6 +139,12 @@ class AppSettings(BaseSettings):
     TORRIN_PREWARM: Union[bool, str] = False
     TORRIN_PREWARM_URL: Optional[str] = ""
     TORRIN_PREWARM_SECRET: Optional[str] = ""
+    # Local library: Torrin indexes on-disk media (seed library / cold storage) and
+    # serves it as an instant source. When enabled, Comet asks Torrin per request
+    # and injects any local matches as top "[📁] Local" streams.
+    TORRIN_LOCAL_ENABLED: Union[bool, str] = False
+    TORRIN_LOCAL_URL: Optional[str] = ""
+    TORRIN_LOCAL_SECRET: Optional[str] = ""
     SCRAPE_DMM: Union[bool, str] = False
     DMM_INGEST_ENABLED: Optional[bool] = False
     DMM_INGEST_INTERVAL: Optional[int] = 86400
