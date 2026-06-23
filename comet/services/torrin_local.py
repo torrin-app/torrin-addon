@@ -46,7 +46,7 @@ def _candidate_titles(title: str, aliases) -> list:
 
 
 async def search_local(
-    session, title, aliases, year, media_type, season, episode
+    session, title, aliases, year, media_type, season, episode, user_key=""
 ) -> list:
     if not _enabled():
         return []
@@ -63,6 +63,9 @@ async def search_local(
                 params.append(("season", str(season)))
             if episode is not None:
                 params.append(("episode", str(episode)))
+        # The caller's Torrin store key, so a play can be attributed to their library.
+        if user_key:
+            params.append(("key", user_key))
 
         url = settings.TORRIN_LOCAL_URL.rstrip("/") + "/internal/local"
         resp = await session.get(

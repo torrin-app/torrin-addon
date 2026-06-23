@@ -85,6 +85,15 @@ def _stream_notice_name(kodi: bool, emoji_name: str, plain_name: str):
     return plain_name if kodi else emoji_name
 
 
+def _resolution_rank(name: str) -> int:
+    """Coarse resolution rank from a stream name, for merging tiers high-first."""
+    n = (name or "").lower()
+    for kw, rank in (("2160", 4), ("4k", 4), ("1080", 3), ("720", 2), ("480", 1)):
+        if kw in n:
+            return rank
+    return 0
+
+
 def _build_stream_name(
     kodi: bool,
     service: str,
@@ -1120,6 +1129,62 @@ async def stream(
 
             cached_results.append(the_stream)
 
+    # Merge Torrin local-library files into the cached (⚡) tier. They're instant
+    # cached-equivalents, so format them exactly like cached streams and slot each
+    # into its resolution band (high quality first) rather than pinning local on top.
+    if settings.TORRIN_LOCAL_ENABLED:
+        try:
+            from comet.services.torrin_local import search_local
+            from RTN import parse as rtn_parse
+
+            local_key = debrid_entries[0].get("apiKey", "") if debrid_entries else ""
+            local_results = await search_local(
+                session, title, aliases, year, media_type,
+                search_season, search_episode, local_key,
+            )
+            for res in local_results:
+                fn = res.get("filename", "")
+                size = res.get("size") or 0
+                rtn_data = rtn_parse(fn)
+                components = format_components(
+                    rtn_data, fn, None, size, "", config["resultFormat"]
+                )
+                is_pack = bool(
+                    getattr(rtn_data, "seasons", None)
+                    and not getattr(rtn_data, "episodes", None)
+                )
+                pack_label = " 📦" if is_pack else ""
+                local_stream = {
+                    "name": _build_stream_name(
+                        kodi,
+                        "",
+                        str(rtn_data.resolution or "") + pack_label,
+                        icon="⚡",
+                        formatted_components=components,
+                        seeders=None,
+                        status="C",
+                    ),
+                    "description": format_title_fn(components),
+                    "url": res.get("url", ""),
+                    "behaviorHints": {
+                        "bingeGroup": f"torrin|{res.get('id', '')}",
+                        "filename": fn,
+                        "videoSize": size,
+                    },
+                }
+                if chilllink:
+                    local_stream["_chilllink"] = format_chilllink(components, True)
+                # Slot after the last cached entry of equal-or-higher resolution.
+                rank = _resolution_rank(local_stream["name"])
+                idx = 0
+                for i in range(len(cached_results) - 1, -1, -1):
+                    if _resolution_rank(cached_results[i]["name"]) >= rank:
+                        idx = i + 1
+                        break
+                cached_results.insert(idx, local_stream)
+        except Exception as e:
+            logger.warning(f"Local library injection failed: {e}")
+
     if sort_mixed:
         final_streams = cached_results + acceleratable_results + non_cached_results
     else:
@@ -1162,39 +1227,6 @@ async def stream(
                 final_streams.insert(0, usenet_stream)
         except Exception as e:
             logger.warning(f"Usenet cache check failed: {e}")
-
-    # Inject Torrin local-library streams (instant, served straight off disk).
-    if settings.TORRIN_LOCAL_ENABLED:
-        try:
-            from comet.services.torrin_local import search_local
-
-            local_results = await search_local(
-                session, title, aliases, year, media_type, search_season, search_episode
-            )
-            for res in local_results:
-                size_gb = (res.get("size") or 0) / 1e9
-                quality = res.get("quality") or res.get("resolution") or "Local"
-                tier = {"local": "NVMe", "cold": "Cold"}.get(
-                    res.get("root", ""), res.get("root", "")
-                )
-                lang = res.get("languages") or ""
-                fn = res.get("filename", "")
-                desc = f"{quality} · {tier} · {size_gb:.1f}GB"
-                if lang:
-                    desc += f" · {lang}"
-                if fn:
-                    desc += f"\n{fn}"
-                final_streams.insert(0, {
-                    "name": _stream_notice_name(kodi, "[Torrin📁]", "[📁] Torrin Local"),
-                    "description": desc,
-                    "url": res.get("url", ""),
-                    "behaviorHints": {
-                        "notWebReady": fn.endswith(".mkv"),
-                        "filename": fn,
-                    },
-                })
-        except Exception as e:
-            logger.warning(f"Local library injection failed: {e}")
 
     has_results = len(final_streams) > 0
 
