@@ -16,6 +16,31 @@ def _parse_size(s: str) -> int:
         return 0
 
 
+async def _resolve_imdb(request) -> str | None:
+    """hdencode searches by IMDB; map kitsu anime ids to imdb when needed."""
+    imdb = request.media_only_id or ""
+    if imdb.startswith("tt"):
+        return imdb
+    parts = imdb.split(":")
+    if len(parts) == 2 and parts[0] == "kitsu":
+        from comet.services.anime import anime_mapper
+
+        resolved = await anime_mapper.get_imdb_from_kitsu(parts[1])
+        if resolved and str(resolved).startswith("tt"):
+            return str(resolved)
+    return None
+
+
+def _alias_params(request) -> list:
+    out, seen = [], set()
+    for titles in (request.aliases or {}).values():
+        for t in titles:
+            if t and t != request.title and t not in seen:
+                seen.add(t)
+                out.append(("alias", t))
+    return out
+
+
 class HDEncodeScraper(BaseScraper):
     """Surfaces hdencode.org releases as streams, matched by IMDB id.
 
@@ -38,9 +63,14 @@ class HDEncodeScraper(BaseScraper):
         try:
             from urllib.parse import urlencode
 
-            params = [("imdb", request.media_only_id)]
+            imdb = await _resolve_imdb(request)
+            if not imdb:
+                return torrents
+
+            params = [("imdb", imdb)]
             if request.title:
                 params.append(("title", request.title))
+            params.extend(_alias_params(request))
             if request.media_type == "series":
                 params.append(("season", request.season))
                 params.append(("episode", request.episode))

@@ -1,7 +1,7 @@
 from comet.core.logger import logger
 from comet.core.models import settings
 from comet.scrapers.base import BaseScraper
-from comet.scrapers.hdencode import _parse_size
+from comet.scrapers.hdencode import _alias_params, _parse_size
 from comet.scrapers.models import ScrapeRequest
 
 
@@ -28,8 +28,7 @@ class ScenerlsScraper(BaseScraper):
             from urllib.parse import urlencode
 
             params = [("title", request.title)]
-            if request.media_only_id:
-                params.append(("imdb", request.media_only_id))
+            params.extend(_alias_params(request))
             if request.media_type == "series":
                 params.append(("season", request.season))
                 params.append(("episode", request.episode))
