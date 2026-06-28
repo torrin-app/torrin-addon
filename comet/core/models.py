@@ -132,6 +132,8 @@ class AppSettings(BaseSettings):
     STREMTHRU_SCRAPE_URL: Union[str, List[str]] = "https://stremthru.13377001.xyz"
     SCRAPE_TORRINCACHE: Union[bool, str] = False
     TORRINCACHE_URL: Union[str, List[str]] = "https://api.torrin.app"
+    SCRAPE_HDENCODE: Union[bool, str] = False
+    HDENCODE_URL: Union[str, List[str]] = "https://api.torrin.app"
     TORRIN_SEARCH_KEY: Optional[str] = ""
     # Pre-warm: when the background scraper finds a good torrent for a popular
     # title, also tell Torrin to cache the actual file (so the first user gets an
