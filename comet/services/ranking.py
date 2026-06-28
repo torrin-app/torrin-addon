@@ -1,5 +1,10 @@
 from RTN import Torrent, check_fetch, get_rank, sort_torrents
 
+# Premium release sources (torrin-backed, guaranteed-cached scene encodes) are
+# ranked without the per-resolution cap so they always survive, even on
+# torrent-heavy titles. Trash filtering still applies.
+RELEASE_SOURCE_TRACKERS = {"HDEncode", "Scene-RLS"}
+
 
 def rank_worker(
     torrents,
@@ -10,6 +15,7 @@ def rank_worker(
     remove_trash,
 ):
     ranked_torrents = set()
+    release_torrents = set()
     for info_hash, torrent in torrents.items():
         if max_size != 0:
             torrent_size = torrent["size"]
@@ -27,17 +33,22 @@ def rank_worker(
                 continue
 
         try:
-            ranked_torrents.add(
-                Torrent(
-                    infohash=info_hash,
-                    raw_title=raw_title,
-                    data=parsed,
-                    fetch=is_fetchable,
-                    rank=rank,
-                    lev_ratio=0.0,
-                )
+            ranked = Torrent(
+                infohash=info_hash,
+                raw_title=raw_title,
+                data=parsed,
+                fetch=is_fetchable,
+                rank=rank,
+                lev_ratio=0.0,
             )
         except Exception:
-            pass
+            continue
 
-    return sort_torrents(ranked_torrents, max_results_per_resolution)
+        if torrent.get("tracker") in RELEASE_SOURCE_TRACKERS:
+            release_torrents.add(ranked)
+        else:
+            ranked_torrents.add(ranked)
+
+    result = sort_torrents(ranked_torrents, max_results_per_resolution)
+    result.update(sort_torrents(release_torrents))
+    return result
