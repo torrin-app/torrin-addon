@@ -188,6 +188,11 @@ def _episode_matching_policy(
     return is_imdb_episode_request, reject_unknown_episode_files
 
 
+# Premium release sources (torrin-backed, guaranteed-cached scene encodes) bypass
+# the per-resolution cap so they always surface, even on torrent-heavy titles.
+RELEASE_SOURCE_TRACKERS = {"HDEncode", "Scene-RLS"}
+
+
 def _select_info_hashes_by_resolution(
     ranked_info_hashes,
     torrents: dict,
@@ -203,6 +208,9 @@ def _select_info_hashes_by_resolution(
     selected_info_hashes = []
 
     def try_select(info_hash: str):
+        if torrents[info_hash].get("tracker") in RELEASE_SOURCE_TRACKERS:
+            selected_info_hashes.append(info_hash)
+            return
         resolution = str(torrents[info_hash]["parsed"].resolution)
         if per_resolution_count[resolution] >= max_results:
             return
