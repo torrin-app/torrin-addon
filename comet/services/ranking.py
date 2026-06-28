@@ -1,8 +1,8 @@
 from RTN import Torrent, check_fetch, get_rank, sort_torrents
 
-# Premium release sources (torrin-backed, guaranteed-cached scene encodes) are
-# ranked without the per-resolution cap so they always survive, even on
-# torrent-heavy titles. Trash filtering still applies.
+# Torrin-backed sources (guaranteed-cached scene encodes) bypass trash filtering
+# and the per-resolution cap so they always surface. Real torrent trash is still
+# hidden by removeTrash; disable the scraper to hide these entirely.
 RELEASE_SOURCE_TRACKERS = {"HDEncode", "Scene-RLS"}
 
 
@@ -28,7 +28,9 @@ def rank_worker(
         is_fetchable, failed_keys = check_fetch(parsed, rtn_settings)
         rank = get_rank(parsed, rtn_settings, rtn_ranking)
 
-        if remove_trash:
+        is_release = torrent.get("tracker") in RELEASE_SOURCE_TRACKERS
+
+        if remove_trash and not is_release:
             if not is_fetchable or rank < rtn_settings.options["remove_ranks_under"]:
                 continue
 
@@ -44,7 +46,7 @@ def rank_worker(
         except Exception:
             continue
 
-        if torrent.get("tracker") in RELEASE_SOURCE_TRACKERS:
+        if is_release:
             release_torrents.add(ranked)
         else:
             ranked_torrents.add(ranked)

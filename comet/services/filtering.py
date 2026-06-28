@@ -6,6 +6,7 @@ from RTN import normalize_title, parse, title_match
 
 from comet.core.logger import logger
 from comet.core.models import settings
+from comet.services.ranking import RELEASE_SOURCE_TRACKERS
 from comet.utils.languages import COUNTRY_TO_LANGUAGE
 from comet.utils.parsing import ensure_multi_language
 
@@ -251,7 +252,11 @@ def filter_worker(
         # re-check. RTN mangles anime release names ("Ace of the Diamond" parses to
         # "Ace of the") and anime has no aliases here, so this re-check would wrongly
         # drop genuinely-matching cached content. Trust the Torrin tracker.
-        if torrent.get("tracker") != "Torrin":
+        trusted = (
+            torrent.get("tracker") == "Torrin"
+            or torrent.get("tracker") in RELEASE_SOURCE_TRACKERS
+        )
+        if not trusted:
             alias_matched = ez_aliases_normalized and quick_alias_match(
                 scrub(torrent_title), ez_aliases_normalized
             )
