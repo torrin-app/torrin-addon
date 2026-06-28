@@ -20,6 +20,7 @@ from comet.services.debrid_account_scraper import (
     ingest_account_torrents_to_public_cache, schedule_account_snapshot_refresh)
 from comet.services.lock import DistributedLock
 from comet.services.orchestration import TorrentManager
+from comet.services.ranking import RELEASE_SOURCE_TRACKERS
 from comet.services.trackers import trackers
 from comet.utils.cache import (CachedJSONResponse, CachePolicies,
                                check_etag_match, generate_etag,
@@ -186,11 +187,6 @@ def _episode_matching_policy(
         is_imdb_episode_request and not allow_debrid_verified_season_packs
     )
     return is_imdb_episode_request, reject_unknown_episode_files
-
-
-# Premium release sources (torrin-backed, guaranteed-cached scene encodes) bypass
-# the per-resolution cap so they always surface, even on torrent-heavy titles.
-RELEASE_SOURCE_TRACKERS = {"HDEncode", "Scene-RLS"}
 
 
 def _select_info_hashes_by_resolution(
