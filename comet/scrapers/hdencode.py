@@ -3,6 +3,18 @@ from comet.core.models import settings
 from comet.scrapers.base import BaseScraper
 from comet.scrapers.models import ScrapeRequest
 
+_UNITS = {"KB": 1024, "MB": 1024**2, "GB": 1024**3, "TB": 1024**4}
+
+
+def _parse_size(s: str) -> int:
+    parts = (s or "").strip().split()
+    if len(parts) != 2:
+        return 0
+    try:
+        return int(float(parts[0]) * _UNITS.get(parts[1].upper(), 0))
+    except ValueError:
+        return 0
+
 
 class HDEncodeScraper(BaseScraper):
     """Surfaces hdencode.org releases as streams, matched by IMDB id.
@@ -46,8 +58,8 @@ class HDEncodeScraper(BaseScraper):
                         "title": result.get("title", ""),
                         "infoHash": info_hash,
                         "fileIndex": None,
-                        "seeders": 500,
-                        "size": 0,
+                        "seeders": None,
+                        "size": _parse_size(result.get("size", "")),
                         "tracker": "HDEncode",
                         "sources": [],
                     }
