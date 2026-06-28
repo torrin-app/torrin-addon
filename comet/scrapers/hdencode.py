@@ -39,6 +39,8 @@ class HDEncodeScraper(BaseScraper):
             from urllib.parse import urlencode
 
             params = [("imdb", request.media_only_id)]
+            if request.title:
+                params.append(("title", request.title))
             if request.media_type == "series":
                 params.append(("season", request.season))
                 params.append(("episode", request.episode))
