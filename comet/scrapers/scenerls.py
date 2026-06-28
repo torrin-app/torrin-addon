@@ -28,6 +28,8 @@ class ScenerlsScraper(BaseScraper):
             from urllib.parse import urlencode
 
             params = [("title", request.title)]
+            if request.media_only_id:
+                params.append(("imdb", request.media_only_id))
             if request.media_type == "series":
                 params.append(("season", request.season))
                 params.append(("episode", request.episode))
