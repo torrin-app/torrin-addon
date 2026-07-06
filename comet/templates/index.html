@@ -1163,47 +1163,6 @@
           const resultFormatSelect = document.getElementById("resultFormat");
           resultFormatSelect.value = defaultResultFormat;
 
-          function buildSortPriority(order) {
-            const container = document.getElementById("sortPriorityList");
-            if (!container) return;
-            const LABELS = {
-              resolution: "Resolution",
-              quality: "Quality",
-              seeders: "Seeders",
-              size: "File Size",
-              language: "Language",
-            };
-            container.innerHTML = "";
-            (order && order.length ? order : Object.keys(LABELS)).forEach((key) => {
-              if (!LABELS[key]) return;
-              const row = document.createElement("div");
-              row.className = "sort-priority-entry";
-              row.draggable = true;
-              row.dataset.key = key;
-              row.innerHTML =
-                '<sl-icon class="drag-handle" name="grip-vertical"></sl-icon><span>' +
-                LABELS[key] +
-                "</span>";
-              row.addEventListener("dragstart", () => row.classList.add("dragging"));
-              row.addEventListener("dragend", () => row.classList.remove("dragging"));
-              row.addEventListener("dragover", (e) => {
-                e.preventDefault();
-                const dragging = container.querySelector(".dragging");
-                if (dragging && dragging !== row) {
-                  const rect = row.getBoundingClientRect();
-                  const midY = rect.top + rect.height / 2;
-                  if (e.clientY < midY) container.insertBefore(dragging, row);
-                  else container.insertBefore(dragging, row.nextSibling);
-                }
-              });
-              container.appendChild(row);
-            });
-          }
-          function getSortPriority() {
-            return Array.from(
-              document.querySelectorAll("#sortPriorityList .sort-priority-entry")
-            ).map((e) => e.dataset.key);
-          }
           buildSortPriority(webConfig.sortPriority);
 
           // Live preview for result format
@@ -1348,6 +1307,48 @@
           const kodiAlert = document.querySelector("#kodiAlert");
           const kodiAlertText = document.querySelector("#kodiAlertText");
           const stremioApiPrefix = {{ (stremioApiPrefix or "") | tojson }};
+
+          function buildSortPriority(order) {
+            const container = document.getElementById("sortPriorityList");
+            if (!container) return;
+            const LABELS = {
+              resolution: "Resolution",
+              quality: "Quality",
+              seeders: "Seeders",
+              size: "File Size",
+              language: "Language",
+            };
+            container.innerHTML = "";
+            (order && order.length ? order : Object.keys(LABELS)).forEach((key) => {
+              if (!LABELS[key]) return;
+              const row = document.createElement("div");
+              row.className = "sort-priority-entry";
+              row.draggable = true;
+              row.dataset.key = key;
+              row.innerHTML =
+                '<sl-icon class="drag-handle" name="grip-vertical"></sl-icon><span>' +
+                LABELS[key] +
+                "</span>";
+              row.addEventListener("dragstart", () => row.classList.add("dragging"));
+              row.addEventListener("dragend", () => row.classList.remove("dragging"));
+              row.addEventListener("dragover", (e) => {
+                e.preventDefault();
+                const dragging = container.querySelector(".dragging");
+                if (dragging && dragging !== row) {
+                  const rect = row.getBoundingClientRect();
+                  const midY = rect.top + rect.height / 2;
+                  if (e.clientY < midY) container.insertBefore(dragging, row);
+                  else container.insertBefore(dragging, row.nextSibling);
+                }
+              });
+              container.appendChild(row);
+            });
+          }
+          function getSortPriority() {
+            return Array.from(
+              document.querySelectorAll("#sortPriorityList .sort-priority-entry")
+            ).map((e) => e.dataset.key);
+          }
 
           function getSettings() {
             const languages_required = Array.from(document.getElementById("languages_required").selectedOptions).map(option => option.value);
@@ -1776,7 +1777,7 @@
               document.getElementById("cachedOnly").checked = settings.cachedOnly;
             if (settings.sortCachedUncachedTogether !== undefined && settings.sortCachedUncachedTogether !== null)
               document.getElementById("sortCachedUncachedTogether").checked = settings.sortCachedUncachedTogether;
-            buildSortPriority(settings.sortPriority || webConfig.sortPriority);
+            buildSortPriority(settings.sortPriority);
             if (settings.removeTrash !== null)
               document.getElementById("removeTrash").checked = settings.removeTrash;
             if (settings.showSeasonPacks)
