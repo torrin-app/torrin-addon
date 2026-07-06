@@ -95,6 +95,44 @@ def _resolution_rank(name: str) -> int:
     return 0
 
 
+def _sort_value(info_hash: str, torrents: dict, sort_by: str, preferred_langs: list):
+    torrent = torrents[info_hash]
+    if sort_by == "resolution":
+        resolution = str(getattr(torrent["parsed"], "resolution", "")).upper()
+        return RESOLUTION_TO_DIMENSIONS.get(resolution, (0, 0))[0]
+    if sort_by == "size":
+        return torrent.get("size") or 0
+    if sort_by == "seeders":
+        return torrent.get("seeders") or 0
+    if sort_by == "language":
+        langs = getattr(torrent["parsed"], "languages", None) or []
+        best = min(
+            (preferred_langs.index(lang) for lang in langs if lang in preferred_langs),
+            default=len(preferred_langs),
+        )
+        return -best
+    return 0
+
+
+def _apply_sort(ranked_info_hashes: list, torrents: dict, config: dict) -> list:
+    """Reorder by the user's chosen key; RTN rank order is kept as the tiebreaker
+    (sorted() is stable). Cache tiering still runs afterwards, so this only sorts
+    within each cache tier."""
+    sort_by = config.get("sortBy") or "quality"
+    if sort_by == "quality":
+        return ranked_info_hashes
+    preferred_langs = (
+        (config.get("languages") or {}).get("preferred", [])
+        if sort_by == "language"
+        else []
+    )
+    return sorted(
+        ranked_info_hashes,
+        key=lambda info_hash: _sort_value(info_hash, torrents, sort_by, preferred_langs),
+        reverse=True,
+    )
+
+
 def _build_stream_name(
     kodi: bool,
     service: str,
@@ -967,8 +1005,9 @@ async def stream(
                 }
             )
 
+    sorted_ranked = _apply_sort(torrent_manager.ranked_torrents, torrents, config)
     selected_info_hashes = _select_info_hashes_by_resolution(
-        ranked_info_hashes=torrent_manager.ranked_torrents,
+        ranked_info_hashes=sorted_ranked,
         torrents=torrents,
         service_cache_status=service_cache_status,
         max_results=config["maxResultsPerResolution"],
@@ -978,9 +1017,7 @@ async def stream(
         prioritize_cached=bool(debrid_entries and not sort_mixed),
     )
     ranked_info_hashes = (
-        selected_info_hashes
-        if selected_info_hashes is not None
-        else torrent_manager.ranked_torrents
+        selected_info_hashes if selected_info_hashes is not None else sorted_ranked
     )
 
     added_hashes = set()

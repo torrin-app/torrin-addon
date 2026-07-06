@@ -1038,6 +1038,7 @@ class ConfigModel(BaseModel):
     resultFormat: Optional[List[str]] = ["all"]
     maxResultsPerResolution: Optional[int] = 0
     maxSize: Optional[float] = 0
+    sortBy: Optional[str] = "quality"
 
     # Legacy single-service fields
     debridService: Optional[str] = "torrent"
@@ -1072,6 +1073,12 @@ class ConfigModel(BaseModel):
 
         if v < 0:
             v = 0
+        return v
+
+    @field_validator("sortBy")
+    def check_sort_by(cls, v):
+        if v not in ("quality", "resolution", "size", "seeders", "language"):
+            return "quality"
         return v
 
     @field_validator("debridService")
@@ -1110,6 +1117,7 @@ web_config = {
         "tracker",
         "languages",
     ],
+    "sortBy": ["quality", "resolution", "size", "seeders", "language"],
 }
 
 

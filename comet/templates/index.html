@@ -977,6 +977,19 @@
             help-text="Disable the default behavior of sorting cached results first, and instead mixes cached and uncached results together."
             >Sort Cached and Uncached Together</sl-checkbox
           >
+          <sl-select
+            id="sortBy"
+            label="Sort By"
+            value="quality"
+            help-text="Order streams within cached/uncached groups. Cached results still show first."
+            hoist
+          >
+            <sl-option value="quality">Best Quality (default)</sl-option>
+            <sl-option value="resolution">Resolution</sl-option>
+            <sl-option value="size">File Size</sl-option>
+            <sl-option value="seeders">Seeders</sl-option>
+            <sl-option value="language">Language</sl-option>
+          </sl-select>
           <sl-checkbox
             checked
             id="removeTrash"
@@ -1281,6 +1294,7 @@
             const maxSize = document.getElementById("maxSize").value;
             const cachedOnly = document.getElementById("cachedOnly").checked;
             const sortCachedUncachedTogether = document.getElementById("sortCachedUncachedTogether").checked;
+            const sortBy = document.getElementById("sortBy").value;
             const removeTrash = document.getElementById("removeTrash").checked;
             const showSeasonPacks = document.getElementById("showSeasonPacks").checked;
             const allowEnglishInLanguages = document.getElementById("allowEnglishInLanguages").checked;
@@ -1300,6 +1314,7 @@
               maxSize: parseFloat(maxSize * 1073741824),
               cachedOnly: cachedOnly,
               sortCachedUncachedTogether: sortCachedUncachedTogether,
+              sortBy: sortBy,
               removeTrash: removeTrash,
               showSeasonPacks: showSeasonPacks,
               resultFormat: selectedResultFormat,
@@ -1679,6 +1694,8 @@
               document.getElementById("cachedOnly").checked = settings.cachedOnly;
             if (settings.sortCachedUncachedTogether !== undefined && settings.sortCachedUncachedTogether !== null)
               document.getElementById("sortCachedUncachedTogether").checked = settings.sortCachedUncachedTogether;
+            if (settings.sortBy)
+              document.getElementById("sortBy").value = settings.sortBy;
             if (settings.removeTrash !== null)
               document.getElementById("removeTrash").checked = settings.removeTrash;
             if (settings.showSeasonPacks)
