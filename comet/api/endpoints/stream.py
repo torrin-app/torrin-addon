@@ -95,16 +95,36 @@ def _resolution_rank(name: str) -> int:
     return 0
 
 
-def _sort_value(info_hash: str, torrents: dict, sort_by: str, preferred_langs: list):
+def _quality_rank(quality) -> int:
+    q = str(quality or "").lower()
+    for kw, rank in (
+        ("remux", 6),
+        ("bluray", 5),
+        ("blu-ray", 5),
+        ("web-dl", 4),
+        ("webdl", 4),
+        ("webrip", 3),
+        ("web", 3),
+        ("hdtv", 2),
+        ("dvd", 1),
+    ):
+        if kw in q:
+            return rank
+    return 0
+
+
+def _sort_key_value(info_hash: str, torrents: dict, key: str, preferred_langs: list):
     torrent = torrents[info_hash]
-    if sort_by == "resolution":
+    if key == "resolution":
         resolution = str(getattr(torrent["parsed"], "resolution", "")).upper()
         return RESOLUTION_TO_DIMENSIONS.get(resolution, (0, 0))[0]
-    if sort_by == "size":
+    if key == "quality":
+        return _quality_rank(getattr(torrent["parsed"], "quality", ""))
+    if key == "size":
         return torrent.get("size") or 0
-    if sort_by == "seeders":
+    if key == "seeders":
         return torrent.get("seeders") or 0
-    if sort_by == "language":
+    if key == "language":
         langs = getattr(torrent["parsed"], "languages", None) or []
         best = min(
             (preferred_langs.index(lang) for lang in langs if lang in preferred_langs),
@@ -115,20 +135,19 @@ def _sort_value(info_hash: str, torrents: dict, sort_by: str, preferred_langs: l
 
 
 def _apply_sort(ranked_info_hashes: list, torrents: dict, config: dict) -> list:
-    """Reorder by the user's chosen key; RTN rank order is kept as the tiebreaker
-    (sorted() is stable). Cache tiering still runs afterwards, so this only sorts
-    within each cache tier."""
-    sort_by = config.get("sortBy") or "quality"
-    if sort_by == "quality":
+    """Reorder by the user's priority list (each key descending, in order); RTN
+    rank order is kept as the final tiebreaker (sorted() is stable). Cache tiering
+    still runs afterwards, so this only sorts within each cache tier."""
+    priority = config.get("sortPriority") or []
+    if not priority:
         return ranked_info_hashes
-    preferred_langs = (
-        (config.get("languages") or {}).get("preferred", [])
-        if sort_by == "language"
-        else []
-    )
+    preferred_langs = (config.get("languages") or {}).get("preferred", [])
     return sorted(
         ranked_info_hashes,
-        key=lambda info_hash: _sort_value(info_hash, torrents, sort_by, preferred_langs),
+        key=lambda info_hash: tuple(
+            _sort_key_value(info_hash, torrents, key, preferred_langs)
+            for key in priority
+        ),
         reverse=True,
     )
 

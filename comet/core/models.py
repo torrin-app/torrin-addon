@@ -1038,7 +1038,13 @@ class ConfigModel(BaseModel):
     resultFormat: Optional[List[str]] = ["all"]
     maxResultsPerResolution: Optional[int] = 0
     maxSize: Optional[float] = 0
-    sortBy: Optional[str] = "quality"
+    sortPriority: Optional[List[str]] = [
+        "resolution",
+        "quality",
+        "seeders",
+        "size",
+        "language",
+    ]
 
     # Legacy single-service fields
     debridService: Optional[str] = "torrent"
@@ -1075,11 +1081,14 @@ class ConfigModel(BaseModel):
             v = 0
         return v
 
-    @field_validator("sortBy")
-    def check_sort_by(cls, v):
-        if v not in ("quality", "resolution", "size", "seeders", "language"):
-            return "quality"
-        return v
+    @field_validator("sortPriority")
+    def check_sort_priority(cls, v):
+        known = ["resolution", "quality", "seeders", "size", "language"]
+        if not isinstance(v, list):
+            return known
+        out = [k for k in v if k in known]
+        out += [k for k in known if k not in out]
+        return out
 
     @field_validator("debridService")
     def check_debrid_service(cls, v):
@@ -1117,7 +1126,7 @@ web_config = {
         "tracker",
         "languages",
     ],
-    "sortBy": ["quality", "resolution", "size", "seeders", "language"],
+    "sortPriority": ["resolution", "quality", "seeders", "size", "language"],
 }
 
 
