@@ -3,7 +3,7 @@ from RTN import Torrent, check_fetch, get_rank, sort_torrents
 # Torrin-backed sources (guaranteed-cached scene encodes) bypass trash filtering
 # and the per-resolution cap so they always surface. Real torrent trash is still
 # hidden by removeTrash; disable the scraper to hide these entirely.
-RELEASE_SOURCE_TRACKERS = {"HDEncode", "Scene-RLS"}
+RELEASE_SOURCE_TRACKERS = {"Torrin", "HDEncode", "Scene-RLS"}
 
 
 def rank_worker(
