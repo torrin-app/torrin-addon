@@ -626,9 +626,18 @@ DMM_ENTRIES_TABLE_SPEC = ManagedTableSpec(
         )
     """,
     index_sql=(
+        # pg_trgm powers the scraper's `parsed_title LIKE '%title%'` lookup; without
+        # a trigram GIN index that leading-wildcard match is a full table scan.
+        """
+            CREATE EXTENSION IF NOT EXISTS pg_trgm
+        """,
         """
             CREATE INDEX IF NOT EXISTS idx_dmm_parsed_year_v2
             ON {table_name} (parsed_year)
+        """,
+        """
+            CREATE INDEX IF NOT EXISTS idx_dmm_parsed_title_trgm
+            ON {table_name} USING gin (parsed_title gin_trgm_ops)
         """,
     ),
 )
