@@ -424,8 +424,10 @@ def _parse_se(name: str) -> tuple[int, int] | None:
     S##E## regex fallback. Returns None for non-episode files (extras/samples)."""
     try:
         p = parse(name)
-        if p.seasons and p.episodes:
-            return p.seasons[0], p.episodes[0]
+        if p.episodes:
+            # Anime absolute numbering ("Kaijuu 8-gou - 01") parses to an episode
+            # with no season; treat it as season 1 rather than dropping the file.
+            return (p.seasons[0] if p.seasons else 1), p.episodes[0]
     except Exception:
         pass
     m = _EP_PATTERN.search(name)
@@ -959,8 +961,14 @@ async def library_stream(type: str, torrin_id: str, b64config: str):
         streams = await _get_episode_streams(entry["apiKey"], entry["service"], parts[1], season, episode)
         return {"streams": streams}
 
+    if parts[0] == "show":
+        return {"streams": []}
+
     info_hash = parts[0]
-    file_idx = int(parts[1]) if len(parts) > 1 else None
+    try:
+        file_idx = int(parts[1]) if len(parts) > 1 else None
+    except ValueError:
+        return {"streams": []}
     streams = await _get_library_streams(entry["apiKey"], entry["service"], info_hash, file_idx)
     return {"streams": streams}
 
