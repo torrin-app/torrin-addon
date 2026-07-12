@@ -125,8 +125,13 @@ def match_parsed_episode_target(
         return False
 
     if parsed_seasons or parsed_episodes:
-        if reject_unknown_episode_files and (not parsed_episodes or not parsed_seasons):
-            return False
+        if reject_unknown_episode_files:
+            if not parsed_episodes:
+                return False
+            # Anime absolute numbering ("Kaijuu 8-gou - 01") has a clear episode but
+            # no season; treat it as season 1 instead of rejecting the file.
+            if not parsed_seasons and season != 1:
+                return False
         return True
 
     parsed_date = parsed.date
