@@ -5,6 +5,39 @@ from RTN import ParsedData
 SCRAPE_URL_MODE_BOTH = "both"
 SCRAPE_URL_MODES = frozenset((SCRAPE_URL_MODE_BOTH, "live", "background"))
 
+_CODEC_MAP = {"hevc": "hevc", "h265": "hevc", "h264": "avc", "avc": "avc", "av1": "av1", "vp9": "vp9"}
+_HDR_MAP = {"DV": "DV", "HDR10": "HDR", "HLG": "HDR"}
+_CHANNELS_MAP = {1: "1.0", 2: "2.0", 6: "5.1", 8: "7.1"}
+_AUDIO_MAP = {
+    "truehd": "Dolby TrueHD", "eac3": "Dolby Digital Plus", "ac3": "Dolby Digital",
+    "dts": "DTS Lossy", "aac": "AAC", "flac": "FLAC", "opus": "OGG",
+}
+
+
+def apply_media_info(parsed: ParsedData, media_info: dict):
+    if not media_info:
+        return
+    try:
+        res = media_info.get("resolution")
+        if res:
+            parsed.resolution = res
+        vc = (media_info.get("video_codec") or "").lower()
+        if vc in _CODEC_MAP:
+            parsed.codec = _CODEC_MAP[vc]
+        hdr = _HDR_MAP.get(media_info.get("hdr"))
+        if hdr:
+            parsed.hdr = [hdr]
+        audio = media_info.get("audio") or []
+        if audio:
+            ch = _CHANNELS_MAP.get(audio[0].get("channels"))
+            if ch:
+                parsed.channels = [ch]
+            ac = _AUDIO_MAP.get((audio[0].get("codec") or "").lower())
+            if ac:
+                parsed.audio = [ac]
+    except Exception:
+        pass
+
 
 def ensure_multi_language(parsed: ParsedData):
     languages = parsed.languages

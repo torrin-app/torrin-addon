@@ -66,11 +66,15 @@ class TorrinCacheScraper(BaseScraper):
                 # passes the scope filter (fileIndex still points to that same file).
                 file_name = files[0].get("file_name") if files else ""
                 title = file_name or result.get("name", "")
+                media_info = files[0].get("media_info") if files else None
                 torrents.append(
                     {
                         "title": title,
                         "infoHash": info_hash,
                         "fileIndex": file_index,
+                        # Ground-truth ffprobe metadata (resolution/codec/hdr/audio) from
+                        # Torrin. Overrides the unreliable filename parse for the label.
+                        "media_info": media_info,
                         # Everything from /api/search is already cached in R2 = instant.
                         # Give it a high seeder count so it ranks well and survives
                         # Comet's top-N filter + dedup (otherwise seeders=None sinks it
