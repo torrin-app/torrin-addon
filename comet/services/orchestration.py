@@ -111,6 +111,7 @@ class TorrentManager:
                 continue
 
             info_hash = torrent["infoHash"]
+            existing = self.torrents.get(info_hash)
             self.torrents[info_hash] = {
                 "fileIndex": torrent["fileIndex"],
                 "title": torrent["title"],
@@ -119,6 +120,8 @@ class TorrentManager:
                 "tracker": torrent["tracker"],
                 "sources": torrent["sources"],
                 "parsed": torrent["parsed"],
+                "media_info": torrent.get("media_info")
+                or (existing.get("media_info") if existing else None),
             }
 
     async def _fetch_cached_rows(self, media_id: str):
@@ -126,7 +129,7 @@ class TorrentManager:
             media_id, self.search_season, self.search_episode
         )
         query = (
-            "SELECT info_hash, file_index, title, seeders, size, tracker, sources_json, parsed_json, episode, updated_at "
+            "SELECT info_hash, file_index, title, seeders, size, tracker, sources_json, parsed_json, media_info, episode, updated_at "
             + where_clause
         )
         return await database.fetch_all(query, params)
@@ -198,6 +201,9 @@ class TorrentManager:
                 "tracker": row["tracker"],
                 "sources": orjson.loads(row["sources_json"]),
                 "parsed": parsed_data,
+                "media_info": orjson.loads(row["media_info"])
+                if row["media_info"]
+                else None,
             }
 
     def _append_cache_file_infos(self, file_infos: list[dict], torrent: dict):
@@ -222,6 +228,7 @@ class TorrentManager:
         seeders = torrent["seeders"]
         tracker = torrent["tracker"]
         sources = torrent["sources"]
+        media_info = torrent.get("media_info")
 
         for season in cache_seasons:
             file_infos.append(
@@ -236,6 +243,7 @@ class TorrentManager:
                     "seeders": seeders,
                     "tracker": tracker,
                     "sources": sources,
+                    "media_info": media_info,
                 }
             )
 

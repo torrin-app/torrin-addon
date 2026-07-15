@@ -48,6 +48,7 @@ TORRENT_DB_COLUMNS = (
     "tracker",
     "sources_json",
     "parsed_json",
+    "media_info",
     "updated_at",
 )
 TORRENT_UPSERT_PARAM_COLUMNS = (
@@ -62,6 +63,7 @@ TORRENT_UPSERT_PARAM_COLUMNS = (
     "tracker",
     "sources_json",
     "parsed_json",
+    "media_info",
 )
 TORRENT_UPSERT_ROW_PARAM_COUNT = len(TORRENT_UPSERT_PARAM_COLUMNS)
 TORRENT_UPSERT_SHARED_PARAM_COUNT = 2
@@ -84,7 +86,9 @@ TORRENT_UPDATE_COLUMNS = tuple(
     column for column in TORRENT_DB_COLUMNS if column not in TORRENT_IMMUTABLE_COLUMNS
 )
 TORRENT_CHANGE_DETECTION_COLUMNS = tuple(
-    column for column in TORRENT_UPDATE_COLUMNS if column != "updated_at"
+    column
+    for column in TORRENT_UPDATE_COLUMNS
+    if column not in ("updated_at", "media_info")
 )
 TORRENT_STABLE_REFRESH_INTERVAL = 31536000
 if settings.LIVE_TORRENT_CACHE_TTL is not None and settings.LIVE_TORRENT_CACHE_TTL >= 0:
@@ -460,6 +464,7 @@ def _construct_torrent_update(
     parsed: dict,
     from_cometnet: bool,
     attempts: int = 0,
+    media_info: dict | None = None,
 ) -> "_TorrentUpdate":
     season_norm = normalize_scope_value(season)
     episode_norm = normalize_scope_value(episode)
@@ -477,6 +482,7 @@ def _construct_torrent_update(
     item.parsed = parsed
     item.from_cometnet = from_cometnet
     item.attempts = attempts
+    item.media_info = media_info
     item.season_norm = season_norm
     item.episode_norm = episode_norm
     item.row_key = (media_id, info_hash, season_norm, episode_norm)
@@ -519,6 +525,7 @@ def _build_torrent_update_from_source(
             parsed_cache,
         ),
         from_cometnet=from_cometnet,
+        media_info=source.get("media_info"),
     )
 
 
@@ -578,6 +585,7 @@ class _TorrentUpdate:
     parsed: dict
     from_cometnet: bool
     attempts: int = 0
+    media_info: dict | None = None
     season_norm: int = field(init=False)
     episode_norm: int = field(init=False)
     row_key: tuple[str, str, int, int] = field(init=False)
@@ -1482,7 +1490,12 @@ class TorrentUpdateQueue:
 
 
 TORRENT_COLUMNS_SQL = ",\n    ".join(TORRENT_DB_COLUMNS)
-TORRENT_UPDATE_SET_SQL = build_upsert_assignments(TORRENT_UPDATE_COLUMNS)
+TORRENT_UPDATE_SET_SQL = (
+    build_upsert_assignments(
+        tuple(column for column in TORRENT_UPDATE_COLUMNS if column != "media_info")
+    )
+    + ",\n        media_info = COALESCE(EXCLUDED.media_info, torrents.media_info)"
+)
 TORRENT_DISTINCT_UPDATE_WHERE_SQL = build_distinct_from_predicate(
     "torrents",
     "EXCLUDED",
@@ -1511,6 +1524,7 @@ def _build_batched_upsert_query(
                 f":tracker_{index}",
                 f":sources_json_{index}",
                 f":parsed_json_{index}",
+                f":media_info_{index}",
                 ":updated_at",
             )
         )
@@ -1579,6 +1593,7 @@ def _build_batched_params(
             tracker_key,
             sources_json_key,
             parsed_json_key,
+            media_info_key,
         ) = param_keys
         params[media_id_key] = item.media_id
         params[info_hash_key] = item.info_hash
@@ -1593,6 +1608,9 @@ def _build_batched_params(
             item.sources, sources_json_cache
         )
         params[parsed_json_key] = _get_cached_json_dump(item.parsed, parsed_json_cache)
+        params[media_info_key] = (
+            _json_dumps(item.media_info) if item.media_info is not None else None
+        )
     return params
 
 

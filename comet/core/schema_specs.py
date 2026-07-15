@@ -287,6 +287,7 @@ TORRENTS_TABLE_SPEC = ManagedTableSpec(
             tracker TEXT,
             sources_json TEXT NOT NULL DEFAULT '[]',
             parsed_json TEXT NOT NULL,
+            media_info TEXT,
             updated_at REAL NOT NULL,
             CHECK ((season IS NULL AND season_norm = -1) OR season = season_norm),
             CHECK ((episode IS NULL AND episode_norm = -1) OR episode = episode_norm)
@@ -306,6 +307,10 @@ TORRENTS_TABLE_SPEC = ManagedTableSpec(
             column_name="parsed_json",
             column_sql="parsed_json TEXT",
             legacy_name="parsed",
+        ),
+        LegacyColumnMigration(
+            column_name="media_info",
+            column_sql="media_info TEXT",
         ),
         LegacyColumnMigration(
             column_name="updated_at",
