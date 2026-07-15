@@ -442,6 +442,8 @@ def _merge_torrent_updates(
         existing.tracker = incoming.tracker
     if incoming.sources:
         existing.sources = _dedupe_strings([*existing.sources, *incoming.sources])
+    if incoming.media_info is not None:
+        existing.media_info = incoming.media_info
     existing.parsed = _merge_parsed_payloads(existing.parsed, incoming.parsed)
     existing.from_cometnet = existing.from_cometnet and incoming.from_cometnet
     if incoming.attempts > existing.attempts:
