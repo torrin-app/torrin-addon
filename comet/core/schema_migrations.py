@@ -922,6 +922,11 @@ async def _migration_addon_configs(ctx: MigrationContext):
     return True
 
 
+async def _migration_torrents_media_info(ctx: MigrationContext):
+    await _add_column_if_missing(ctx, "torrents", "media_info", "media_info TEXT")
+    return True
+
+
 MIGRATIONS = [
     ("2026030901_foundation", _migration_foundation),
     ("2026030902_backfill_canonical_tables", _migration_backfill_canonical_tables),
@@ -935,4 +940,5 @@ MIGRATIONS = [
         _migration_series_episode_index_refresh,
     ),
     ("2026061701_addon_configs", _migration_addon_configs),
+    ("2026071501_torrents_media_info", _migration_torrents_media_info),
 ]
