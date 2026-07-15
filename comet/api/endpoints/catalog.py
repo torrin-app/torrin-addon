@@ -14,6 +14,7 @@ from comet.core.models import settings
 from comet.debrid.manager import get_debrid_credentials
 from comet.metadata.tmdb import DEFAULT_TMDB_READ_ACCESS_TOKEN
 from comet.utils.http_client import http_client_manager
+from comet.utils.parsing import format_media_info_line
 
 router = APIRouter()
 
@@ -389,6 +390,10 @@ async def _get_library(api_key: str, store_name: str, filter_type: str = "") -> 
         }
         if imdb_id.startswith("tt"):
             meta["imdb_id"] = imdb_id
+        files = item.get("files") or []
+        mi_line = format_media_info_line(files[0].get("media_info") if files else None)
+        if mi_line:
+            meta["description"] = mi_line
         poster_tasks.append((len(metas), _get_poster(name, content_type, imdb_id)))
         metas.append(meta)
 

@@ -13,6 +13,50 @@ _AUDIO_MAP = {
     "dts": "DTS Lossy", "aac": "AAC", "flac": "FLAC", "opus": "OGG",
 }
 
+_CODEC_LABELS = {"hevc": "HEVC", "h265": "HEVC", "h264": "H.264", "avc": "H.264", "av1": "AV1", "vp9": "VP9"}
+_AUDIO_LABELS = {"truehd": "TrueHD", "eac3": "E-AC3", "ac3": "AC3", "dts": "DTS", "aac": "AAC", "flac": "FLAC", "opus": "Opus"}
+
+
+def format_media_info_line(media_info: dict) -> str:
+    if not media_info:
+        return ""
+    try:
+        parts = []
+        if media_info.get("resolution"):
+            parts.append(media_info["resolution"])
+        if media_info.get("hdr"):
+            parts.append(media_info["hdr"])
+        vc = (media_info.get("video_codec") or "").lower()
+        if vc:
+            parts.append(_CODEC_LABELS.get(vc, vc.upper()))
+        br = media_info.get("bitrate")
+        if br:
+            parts.append(f"{round(br / 1e6)} Mbps")
+        dur = media_info.get("duration_sec")
+        if dur:
+            m = round(dur / 60)
+            parts.append(f"{m // 60}h {m % 60}m" if m >= 60 else f"{m}m")
+        for a in media_info.get("audio") or []:
+            ac = (a.get("codec") or "").lower()
+            lg = a.get("language")
+            bits = [
+                _AUDIO_LABELS.get(ac, ac.upper()) if ac else "",
+                _CHANNELS_MAP.get(a.get("channels"), ""),
+                lg.upper() if lg and lg != "und" else "",
+            ]
+            label = " ".join(b for b in bits if b)
+            if label:
+                parts.append(label)
+        subs = media_info.get("subtitles") or []
+        if subs:
+            langs = list(dict.fromkeys(
+                (s.get("language") or "").upper() for s in subs if s.get("language") and s.get("language") != "und"
+            ))
+            parts.append(f"SUB {' '.join(langs[:4])}" if langs else f"{len(subs)} subs")
+        return " · ".join(parts)
+    except Exception:
+        return ""
+
 
 def apply_media_info(parsed: ParsedData, media_info: dict):
     if not media_info:

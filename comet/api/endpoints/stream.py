@@ -30,7 +30,7 @@ from comet.utils.formatting import (format_chilllink, format_title,
                                     get_formatted_components_plain)
 from comet.utils.http_client import http_client_manager
 from comet.utils.network import get_client_ip
-from comet.utils.parsing import apply_media_info, parse_media_id
+from comet.utils.parsing import apply_media_info, format_media_info_line, parse_media_id
 
 streams = APIRouter()
 STREMIO_API_PREFIX = settings.STREMIO_API_PREFIX
@@ -1056,6 +1056,9 @@ async def stream(
             config["resultFormat"],
         )
         formatted_title = format_title_fn(formatted_components)
+        _mi_line = format_media_info_line(torrent.get("media_info"))
+        if _mi_line:
+            formatted_title = f"{formatted_title}\n{_mi_line}" if formatted_title else _mi_line
         kodi_meta = _build_kodi_meta(rtn_data, formatted_components) if kodi else None
         info_hash_cache_status = service_cache_status.get(info_hash)
         quoted_torrent_title = quote(torrent_title)
