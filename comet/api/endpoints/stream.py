@@ -22,6 +22,7 @@ from comet.services.lock import DistributedLock
 from comet.services.orchestration import TorrentManager
 from comet.services.ranking import RELEASE_SOURCE_TRACKERS
 from comet.services.trackers import trackers
+from comet.utils.georoute import georoute_streams
 from comet.utils.cache import (CachedJSONResponse, CachePolicies,
                                check_etag_match, generate_etag,
                                not_modified_response)
@@ -1292,6 +1293,7 @@ async def stream(
         except Exception as e:
             logger.warning(f"Usenet cache check failed: {e}")
 
+    final_streams = georoute_streams(request, final_streams)
     has_results = len(final_streams) > 0
 
     return _stream_response(

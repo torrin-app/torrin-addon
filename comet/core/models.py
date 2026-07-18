@@ -137,6 +137,11 @@ class AppSettings(BaseSettings):
     SCRAPE_SCENERLS: Union[bool, str] = False
     SCENERLS_URL: Union[str, List[str]] = "https://api.torrin.app"
     TORRIN_SEARCH_KEY: Optional[str] = ""
+    # Geo-routing: pick the nearest stream relay for each viewer (host:lat:lng, comma-separated).
+    # First entry is the default when a viewer's location is unknown. Add a relay = add a line.
+    TORRIN_STREAM_RELAYS: Optional[str] = (
+        "beam-eu.torrin.app:50.9:6.9,beam-za.torrin.app:-26.2:28.0"
+    )
     # Pre-warm: when the background scraper finds a good torrent for a popular
     # title, also tell Torrin to cache the actual file (so the first user gets an
     # instant stream). Gated by TORRIN_PREWARM; auths with Torrin's internal secret.
