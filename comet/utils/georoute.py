@@ -46,22 +46,35 @@ def nearest_host(lat, lng):
     return min(RELAYS, key=lambda r: _haversine_km(lat, lng, r[1], r[2]))[0]
 
 
-def georoute_streams(request, streams):
+def _pick_host(request):
     if not RELAYS:
-        return streams
+        return None
     try:
         lat = float(request.headers.get("cf-iplatitude"))
         lng = float(request.headers.get("cf-iplongitude"))
     except (TypeError, ValueError):
-        return streams
-    host = nearest_host(lat, lng)
+        return None
+    return nearest_host(lat, lng)
+
+
+def georoute_url(request, url):
+    if not url:
+        return url
+    host = _pick_host(request)
+    if not host:
+        return url
+    parsed = urlparse(url)
+    if parsed.netloc in RELAY_HOSTS and parsed.netloc != host:
+        return urlunparse(parsed._replace(netloc=host))
+    return url
+
+
+def georoute_streams(request, streams):
+    host = _pick_host(request)
     if not host:
         return streams
     for stream in streams:
         url = stream.get("url")
-        if not url:
-            continue
-        parsed = urlparse(url)
-        if parsed.netloc in RELAY_HOSTS and parsed.netloc != host:
-            stream["url"] = urlunparse(parsed._replace(netloc=host))
+        if url:
+            stream["url"] = georoute_url(request, url)
     return streams

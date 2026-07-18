@@ -15,6 +15,7 @@ from comet.debrid.manager import (build_account_key_hash, get_debrid,
                                   get_debrid_credentials)
 from comet.metadata.manager import MetadataScraper
 from comet.services.status_video import build_status_video_response
+from comet.utils.georoute import georoute_url
 from comet.services.streaming.manager import custom_handle_stream_request
 from comet.utils.http_client import http_client_manager
 from comet.utils.network import get_client_ip
@@ -273,4 +274,4 @@ async def playback(
             ip=ip,
         )
 
-    return RedirectResponse(download_url, status_code=302)
+    return RedirectResponse(georoute_url(request, download_url), status_code=302)
