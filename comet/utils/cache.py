@@ -156,8 +156,9 @@ class CachePolicies:
     @staticmethod
     def streams():
         """
-        For all stream results.
-        Cache for a short time at CDN, revalidate often.
+        For all stream results. Private (per-viewer browser cache only), never
+        shared at a CDN/proxy: stream URLs are geo-routed to the viewer's nearest
+        relay, so a shared cache would serve one region's relay to another.
         """
 
         ttl = settings.HTTP_CACHE_STREAMS_TTL
@@ -165,9 +166,8 @@ class CachePolicies:
 
         return (
             CacheControl()
-            .public()
-            .max_age(ttl // 2)  # Browser cache shorter
-            .s_maxage(ttl)  # CDN/proxy cache longer
+            .private()
+            .max_age(ttl // 2)
             .stale_while_revalidate(swr)
             .stale_if_error(300)
         )
