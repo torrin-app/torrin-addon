@@ -140,7 +140,7 @@ class AppSettings(BaseSettings):
     # Geo-routing: pick the nearest stream relay for each viewer (host:lat:lng, comma-separated).
     # First entry is the default when a viewer's location is unknown. Add a relay = add a line.
     TORRIN_STREAM_RELAYS: Optional[str] = (
-        "beam-eu.torrin.app:50.9:6.9,beam-za.torrin.app:-26.2:28.0"
+        "beam-eu.torrin.app:50.9:6.9,beam-za.torrin.app:-26.2:28.0,beam-sg.torrin.app:1.35:103.8"
     )
     # Pre-warm: when the background scraper finds a good torrent for a popular
     # title, also tell Torrin to cache the actual file (so the first user gets an
