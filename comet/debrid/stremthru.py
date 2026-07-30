@@ -190,17 +190,6 @@ class StremThru:
                 f"{self.store_name}: Failed to check account status.\n{e}",
             )
 
-    async def account_transcode(self) -> bool:
-        try:
-            response = await self.session.get(
-                f"{self.base_url}/user?client_ip={self.client_ip}",
-                headers=self._headers(),
-            )
-            user = await response.json()
-            return bool(user.get("data", {}).get("transcode"))
-        except Exception:
-            return False
-
     async def get_instant(self, magnets: list):
         try:
             url = f"{self.base_url}/magnets/check?magnet={','.join(magnets)}&client_ip={self.client_ip}&sid={self.sid}"

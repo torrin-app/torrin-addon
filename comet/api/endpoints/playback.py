@@ -1,5 +1,4 @@
 import time
-from urllib.parse import quote, urlparse
 
 import mediaflow_proxy.utils.http_utils
 import orjson
@@ -23,33 +22,6 @@ from comet.utils.network import get_client_ip
 from comet.utils.parsing import parse_optional_int
 
 router = APIRouter()
-
-_transcode_cap_cache: dict[str, tuple[float, bool]] = {}
-_TRANSCODE_CAP_TTL = 300
-
-
-async def _user_can_transcode(session, debrid_service, debrid_api_key, ip) -> bool:
-    key = build_account_key_hash(debrid_api_key)
-    now = time.time()
-    cached = _transcode_cap_cache.get(key)
-    if cached and now - cached[0] < _TRANSCODE_CAP_TTL:
-        return cached[1]
-    debrid = get_debrid(session, None, None, debrid_service, debrid_api_key, ip)
-    can = await debrid.account_transcode() if hasattr(debrid, "account_transcode") else False
-    _transcode_cap_cache[key] = (now, can)
-    return can
-
-
-def _transcode_redirect(request, download_url: str):
-    if not settings.TORRIN_TRANSCODE_URL or "/blobs/b_" not in download_url:
-        return None
-    parsed = urlparse(download_url)
-    ck = parsed.path.rsplit("/blobs/b_", 1)[1]
-    src = f"{settings.TORRIN_TRANSCODE_SRC_BASE}{parsed.path}?{parsed.query}"
-    url = f"{settings.TORRIN_TRANSCODE_URL}/vod/{ck}/index.m3u8?src={quote(src, safe='')}"
-    # geo-route the host to the viewer's nearest relay (all relays proxy /transcode
-    # to the same node); path + sig are host-independent so the swap is safe.
-    return RedirectResponse(georoute_url(request, url), status_code=302)
 
 
 async def cache_download_link(
@@ -292,13 +264,6 @@ async def playback(
             episode=episode,
             download_url=download_url,
         )
-
-    if config.get("transcode") and await _user_can_transcode(
-        session, debrid_service, debrid_api_key, ip if not should_proxy else ""
-    ):
-        redirect = _transcode_redirect(request, download_url)
-        if redirect is not None:
-            return redirect
 
     if should_proxy:
         return await custom_handle_stream_request(

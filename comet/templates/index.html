@@ -1032,11 +1032,6 @@
             help-text="When watching a single episode, also show season packs and multi-season packs in results. The correct episode file will be selected automatically."
             >Show Season Packs</sl-checkbox
           >
-          <sl-checkbox
-            id="transcode"
-            help-text="Pro only. Plays an adaptive quality ladder (up to 1080p) transcoded on the fly, so incompatible files (4K, HEVC, 10-bit, HDR, surround audio) play on any device or connection. No effect on non-Pro accounts."
-            >Transcode (adaptive)</sl-checkbox
-          >
           <sl-select
             id="resultFormat"
             multiple
@@ -1377,7 +1372,6 @@
             const sortPriority = getSortPriority();
             const removeTrash = document.getElementById("removeTrash").checked;
             const showSeasonPacks = document.getElementById("showSeasonPacks").checked;
-            const transcode = document.getElementById("transcode").checked;
             const allowEnglishInLanguages = document.getElementById("allowEnglishInLanguages").checked;
             const removeUnknownLanguages = document.getElementById("removeUnknownLanguages").checked;
             const resultFormat = Array.from(document.getElementById("resultFormat").selectedOptions).map(option => option.value);
@@ -1398,7 +1392,6 @@
               sortPriority: sortPriority,
               removeTrash: removeTrash,
               showSeasonPacks: showSeasonPacks,
-              transcode: transcode,
               resultFormat: selectedResultFormat,
               debridServices: debridServices,
               enableTorrent: enableTorrent,
@@ -1789,7 +1782,6 @@
               document.getElementById("removeTrash").checked = settings.removeTrash;
             if (settings.showSeasonPacks)
               document.getElementById("showSeasonPacks").checked = settings.showSeasonPacks;
-              document.getElementById("transcode").checked = settings.transcode;
             if (settings.maxResultsPerResolution !== null)
               document.getElementById("maxResultsPerResolution").value = settings.maxResultsPerResolution;
             if (settings.maxSize !== null)

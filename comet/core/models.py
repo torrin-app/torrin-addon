@@ -142,11 +142,6 @@ class AppSettings(BaseSettings):
     TORRIN_STREAM_RELAYS: Optional[str] = (
         "beam-eu.torrin.app:50.9:6.9,beam-za.torrin.app:-26.2:28.0,beam-sg.torrin.app:1.35:103.8"
     )
-    # On-demand transcoding (pro only): TORRIN_TRANSCODE_URL is the public base that
-    # routes to the go-transcode node; empty disables the feature. TORRIN_TRANSCODE_SRC_BASE
-    # is how that node reaches the stream service internally (the input it transcodes from).
-    TORRIN_TRANSCODE_URL: Optional[str] = ""
-    TORRIN_TRANSCODE_SRC_BASE: Optional[str] = "http://stream:8084"
     # Pre-warm: when the background scraper finds a good torrent for a popular
     # title, also tell Torrin to cache the actual file (so the first user gets an
     # instant stream). Gated by TORRIN_PREWARM; auths with Torrin's internal secret.
@@ -1045,7 +1040,6 @@ class ConfigModel(BaseModel):
     sortCachedUncachedTogether: Optional[bool] = False
     removeTrash: Optional[bool] = True
     showSeasonPacks: Optional[bool] = False
-    transcode: Optional[bool] = False
     resultFormat: Optional[List[str]] = ["all"]
     maxResultsPerResolution: Optional[int] = 0
     maxSize: Optional[float] = 0
