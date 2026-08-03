@@ -1325,7 +1325,8 @@ async def stream(
                     "url": play_url,
                     "behaviorHints": {"notWebReady": True},
                 })
-            final_streams[0:0] = usenet_streams
+            insert_at = len(final_streams) - len(non_cached_results)
+            final_streams[insert_at:insert_at] = usenet_streams
         except Exception as e:
             logger.warning(f"Usenet live search failed: {e}")
 
