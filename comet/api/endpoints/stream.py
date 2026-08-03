@@ -1306,6 +1306,7 @@ async def stream(
                     session, id, season, episode, api_key, title
                 )
             seen = {(st.get("description") or "").split("\n")[0].lower() for st in final_streams}
+            usenet_streams = []
             for res in found[:5]:
                 name = res.get("title", "")
                 if not name or name.lower() in seen:
@@ -1318,12 +1319,13 @@ async def stream(
                     f"&imdb={quote(id, safe='')}"
                     f"&title={quote(title, safe='')}"
                 )
-                final_streams.append({
-                    "name": _stream_notice_name(kodi, "[Torrin↓]", "[↓] Torrin Usenet"),
+                usenet_streams.append({
+                    "name": _stream_notice_name(kodi, "[Torrin↓ Usenet]", "[↓] Torrin Usenet"),
                     "description": f"{name}\n💾 {size_gb:.2f} GB",
                     "url": play_url,
                     "behaviorHints": {"notWebReady": True},
                 })
+            final_streams[0:0] = usenet_streams
         except Exception as e:
             logger.warning(f"Usenet live search failed: {e}")
 
