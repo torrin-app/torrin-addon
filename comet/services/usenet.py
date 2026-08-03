@@ -21,7 +21,7 @@ async def get_cached_usenet(session: aiohttp.ClientSession, imdb_id: str, api_ke
         return []
 
 
-async def search_usenet(session: aiohttp.ClientSession, imdb_id: str, api_key: str) -> list:
+async def search_usenet(session: aiohttp.ClientSession, imdb_id: str, api_key: str, title: str = "") -> list:
     """Search user's Usenet indexer for a movie by IMDB ID."""
     if not settings.STREMTHRU_URL or not imdb_id:
         return []
@@ -29,6 +29,8 @@ async def search_usenet(session: aiohttp.ClientSession, imdb_id: str, api_key: s
     try:
         url = f"{settings.STREMTHRU_URL}/api/usenet/search"
         params = {"imdb": imdb_id}
+        if title:
+            params["title"] = title
         headers = {"Authorization": f"Bearer {api_key}"}
         async with session.get(url, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=15)) as resp:
             if resp.status != 200:
@@ -39,7 +41,7 @@ async def search_usenet(session: aiohttp.ClientSession, imdb_id: str, api_key: s
         return []
 
 
-async def search_usenet_series(session: aiohttp.ClientSession, imdb_id: str, season: int, episode: int, api_key: str) -> list:
+async def search_usenet_series(session: aiohttp.ClientSession, imdb_id: str, season: int, episode: int, api_key: str, title: str = "") -> list:
     """Search user's Usenet indexer for a TV episode by IMDB ID + season + episode."""
     if not settings.STREMTHRU_URL or not imdb_id or not season or not episode:
         return []
@@ -47,6 +49,8 @@ async def search_usenet_series(session: aiohttp.ClientSession, imdb_id: str, sea
     try:
         url = f"{settings.STREMTHRU_URL}/api/usenet/search"
         params = {"imdb": imdb_id, "season": str(season), "ep": str(episode)}
+        if title:
+            params["title"] = title
         headers = {"Authorization": f"Bearer {api_key}"}
         async with session.get(url, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=15)) as resp:
             if resp.status != 200:
@@ -55,6 +59,23 @@ async def search_usenet_series(session: aiohttp.ClientSession, imdb_id: str, sea
     except Exception as e:
         logger.warning(f"Usenet series search failed: {e}")
         return []
+
+
+async def get_job(session: aiohttp.ClientSession, job_id: str, api_key: str) -> dict | None:
+    """Fetch a Torrin job by id (for cache-and-play polling)."""
+    if not settings.STREMTHRU_URL or not job_id:
+        return None
+
+    try:
+        url = f"{settings.STREMTHRU_URL}/api/jobs/{job_id}"
+        headers = {"Authorization": f"Bearer {api_key}"}
+        async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+            if resp.status != 200:
+                return None
+            return await resp.json()
+    except Exception as e:
+        logger.warning(f"Usenet job poll failed: {e}")
+        return None
 
 
 async def grab_usenet(session: aiohttp.ClientSession, result_id: str, title: str, imdb_id: str, api_key: str) -> dict | None:
@@ -74,3 +95,13 @@ async def grab_usenet(session: aiohttp.ClientSession, result_id: str, title: str
     except Exception as e:
         logger.warning(f"Usenet grab failed: {e}")
         return None
+
+
+def best_stream_url(job: dict | None) -> str:
+    """Largest ready file's signed URL from a Torrin job, or empty if not ready."""
+    if not job:
+        return ""
+    streams = [s for s in job.get("stream_urls") or [] if s.get("signed_url")]
+    if not streams:
+        return ""
+    return max(streams, key=lambda s: s.get("size") or 0)["signed_url"]

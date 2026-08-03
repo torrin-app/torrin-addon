@@ -1293,6 +1293,40 @@ async def stream(
         except Exception as e:
             logger.warning(f"Usenet cache check failed: {e}")
 
+    # Inject uncached usenet (live indexer search; gated to plan server-side).
+    if debrid_entries and settings.STREMTHRU_URL:
+        try:
+            from comet.services.usenet import (search_usenet,
+                                               search_usenet_series)
+            api_key = debrid_entries[0].get("apiKey", "")
+            if media_type == "movie":
+                found = await search_usenet(session, id, api_key, title)
+            else:
+                found = await search_usenet_series(
+                    session, id, season, episode, api_key, title
+                )
+            seen = {(st.get("description") or "").split("\n")[0].lower() for st in final_streams}
+            for res in found[:5]:
+                name = res.get("title", "")
+                if not name or name.lower() in seen:
+                    continue
+                seen.add(name.lower())
+                size_gb = (res.get("size") or 0) / 1e9
+                play_url = (
+                    f"{playback_base_url}/usenet/play"
+                    f"?rid={quote(str(res.get('id', '')), safe='')}"
+                    f"&imdb={quote(id, safe='')}"
+                    f"&title={quote(title, safe='')}"
+                )
+                final_streams.append({
+                    "name": _stream_notice_name(kodi, "[Torrin↓]", "[↓] Torrin Usenet"),
+                    "description": f"{name}\n💾 {size_gb:.2f} GB",
+                    "url": play_url,
+                    "behaviorHints": {"notWebReady": True},
+                })
+        except Exception as e:
+            logger.warning(f"Usenet live search failed: {e}")
+
     final_streams = georoute_streams(request, final_streams)
     has_results = len(final_streams) > 0
 

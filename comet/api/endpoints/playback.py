@@ -1,3 +1,4 @@
+import asyncio
 import time
 
 import mediaflow_proxy.utils.http_utils
@@ -15,6 +16,7 @@ from comet.debrid.manager import (build_account_key_hash, get_debrid,
                                   get_debrid_credentials)
 from comet.metadata.manager import MetadataScraper
 from comet.services.status_video import build_status_video_response
+from comet.services.usenet import best_stream_url, get_job, grab_usenet
 from comet.utils.georoute import georoute_url
 from comet.services.streaming.manager import custom_handle_stream_request
 from comet.utils.http_client import http_client_manager
@@ -22,6 +24,9 @@ from comet.utils.network import get_client_ip
 from comet.utils.parsing import parse_optional_int
 
 router = APIRouter()
+
+USENET_PLAY_POLLS = 10
+USENET_PLAY_INTERVAL = 2.0
 
 
 async def cache_download_link(
@@ -275,3 +280,47 @@ async def playback(
         )
 
     return RedirectResponse(georoute_url(request, download_url), status_code=302)
+
+
+@router.get(
+    "/{b64config}/usenet/play",
+    tags=["Stremio"],
+    summary="Usenet Playback",
+    description="Grabs an uncached Usenet NZB and streams it once ready (cache-and-play).",
+)
+async def usenet_play(
+    request: Request,
+    b64config: str,
+    rid: str = Query(),
+    imdb: str = Query(default=""),
+    title: str = Query(default=""),
+):
+    config = await resolve_config(b64config, strict_b64config=True)
+    if not config:
+        return build_status_video_response(["BAD_REQUEST"], default_key="BAD_REQUEST")
+
+    debrid_entries = config.get("_debridEntries") or []
+    api_key = debrid_entries[0].get("apiKey", "") if debrid_entries else ""
+    if not rid or not api_key:
+        return build_status_video_response(["BAD_REQUEST"], default_key="BAD_REQUEST")
+
+    session = await http_client_manager.get_session()
+    job = await grab_usenet(session, rid, title, imdb, api_key)
+    if job is None:
+        return build_status_video_response(
+            ["DOWNLOAD_SERVER_ERROR"], default_key="DOWNLOAD_SERVER_ERROR"
+        )
+
+    url = best_stream_url(job)
+    job_id = job.get("id", "")
+    polls = 0
+    while not url and job_id and polls < USENET_PLAY_POLLS:
+        await asyncio.sleep(USENET_PLAY_INTERVAL)
+        url = best_stream_url(await get_job(session, job_id, api_key))
+        polls += 1
+
+    if url:
+        return RedirectResponse(georoute_url(request, url), status_code=302)
+    return build_status_video_response(
+        ["MEDIA_NOT_CACHED_YET"], default_key="MEDIA_NOT_CACHED_YET"
+    )
