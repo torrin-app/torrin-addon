@@ -793,6 +793,20 @@ async def stream(
             session,
         )
 
+    # Kick the uncached usenet search off now so its indexer round-trip overlaps
+    # the scrape/availability/ranking work below instead of adding onto it.
+    usenet_search_task = None
+    if debrid_entries and settings.STREMTHRU_URL:
+        from comet.services.usenet import search_usenet, search_usenet_series
+        _usenet_key = debrid_entries[0].get("apiKey", "")
+        if media_type == "movie":
+            _usenet_coro = search_usenet(session, id, _usenet_key, title)
+        else:
+            _usenet_coro = search_usenet_series(
+                session, id, season, episode, _usenet_key, title
+            )
+        usenet_search_task = asyncio.create_task(_usenet_coro)
+
     if cache_result.should_scrape_now or force_scrape_now:
         logger.log("SCRAPER", f"🔎 Starting new search for {log_title}")
         try:
@@ -1294,17 +1308,9 @@ async def stream(
             logger.warning(f"Usenet cache check failed: {e}")
 
     # Inject uncached usenet (live indexer search; gated to plan server-side).
-    if debrid_entries and settings.STREMTHRU_URL:
+    if usenet_search_task is not None:
         try:
-            from comet.services.usenet import (search_usenet,
-                                               search_usenet_series)
-            api_key = debrid_entries[0].get("apiKey", "")
-            if media_type == "movie":
-                found = await search_usenet(session, id, api_key, title)
-            else:
-                found = await search_usenet_series(
-                    session, id, season, episode, api_key, title
-                )
+            found = await usenet_search_task
             seen = {(st.get("description") or "").split("\n")[0].lower() for st in final_streams}
             usenet_streams = []
             for res in found[:5]:
