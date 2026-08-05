@@ -1105,15 +1105,14 @@ async def stream(
 
             # Three tiers:
             #   ⚡ instant   — already on Torrin's R2
-            #   🌩️ accelerate — cached on a debrid provider (AD/RD/BYOK TB/PM), grabbed fast
+            #   ☁️ accelerate — cached on a debrid provider (AD/RD/BYOK TB/PM), grabbed fast
             #   🧲 torrent    — uncached, downloaded on demand (slow)
-            # 🌩️ (not ☁️) because AIOStreams treats ☁️ as uncached; 🌩️ is a cached symbol there.
             cache_tier = torrent.get("cache_tier", "")
             if is_cached and cache_tier == "cached":
                 stream_icon = "⚡"
                 stream_status = "C"
             elif is_cached:
-                stream_icon = "🌩️"
+                stream_icon = "☁️"
                 stream_status = "A"
             else:
                 stream_icon = "🧲"
