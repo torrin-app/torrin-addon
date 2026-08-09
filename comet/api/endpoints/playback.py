@@ -16,7 +16,7 @@ from comet.debrid.manager import (build_account_key_hash, get_debrid,
                                   get_debrid_credentials)
 from comet.metadata.manager import MetadataScraper
 from comet.services.status_video import build_status_video_response
-from comet.services.usenet import best_stream_url, get_job, grab_usenet
+from comet.services.usenet import best_stream_url, get_job, grab_usenet, stream_usenet
 from comet.utils.georoute import georoute_url
 from comet.services.streaming.manager import custom_handle_stream_request
 from comet.utils.http_client import http_client_manager
@@ -305,6 +305,11 @@ async def usenet_play(
         return build_status_video_response(["BAD_REQUEST"], default_key="BAD_REQUEST")
 
     session = await http_client_manager.get_session()
+
+    stream_url = await stream_usenet(session, rid, title, imdb, api_key)
+    if stream_url:
+        return RedirectResponse(georoute_url(request, stream_url), status_code=302)
+
     job = await grab_usenet(session, rid, title, imdb, api_key)
     if job is None:
         return build_status_video_response(
