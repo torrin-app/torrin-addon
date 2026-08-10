@@ -78,7 +78,7 @@ async def get_job(session: aiohttp.ClientSession, job_id: str, api_key: str) -> 
         return None
 
 
-async def grab_usenet(session: aiohttp.ClientSession, result_id: str, title: str, imdb_id: str, api_key: str) -> dict | None:
+async def grab_usenet(session: aiohttp.ClientSession, result_id: str, title: str, imdb_id: str, api_key: str, source: str = "", nzb_url: str = "") -> dict | None:
     """Submit an NZB to Torrin for download via the grab endpoint."""
     if not settings.STREMTHRU_URL:
         return None
@@ -87,7 +87,7 @@ async def grab_usenet(session: aiohttp.ClientSession, result_id: str, title: str
         url = f"{settings.STREMTHRU_URL}/api/usenet/grab"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         import json
-        body = json.dumps({"id": result_id, "title": title, "imdb_id": imdb_id})
+        body = json.dumps({"id": result_id, "title": title, "imdb_id": imdb_id, "source": source, "nzb_url": nzb_url})
         async with session.post(url, headers=headers, data=body, timeout=aiohttp.ClientTimeout(total=30)) as resp:
             if resp.status not in (200, 202):
                 return None
@@ -97,7 +97,7 @@ async def grab_usenet(session: aiohttp.ClientSession, result_id: str, title: str
         return None
 
 
-async def stream_usenet(session: aiohttp.ClientSession, result_id: str, title: str, imdb_id: str, api_key: str) -> str:
+async def stream_usenet(session: aiohttp.ClientSession, result_id: str, title: str, imdb_id: str, api_key: str, source: str = "", nzb_url: str = "") -> str:
     """Ask Torrin for a live stream URL for a usenet result. Empty if streaming is off or the release is packed."""
     if not settings.STREMTHRU_URL:
         return ""
@@ -106,7 +106,7 @@ async def stream_usenet(session: aiohttp.ClientSession, result_id: str, title: s
         url = f"{settings.STREMTHRU_URL}/api/usenet/stream"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         import json
-        body = json.dumps({"id": result_id, "title": title, "imdb_id": imdb_id})
+        body = json.dumps({"id": result_id, "title": title, "imdb_id": imdb_id, "source": source, "nzb_url": nzb_url})
         async with session.post(url, headers=headers, data=body, timeout=aiohttp.ClientTimeout(total=30)) as resp:
             if resp.status != 200:
                 return ""

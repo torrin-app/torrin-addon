@@ -1324,6 +1324,8 @@ async def stream(
                     f"?rid={quote(str(res.get('id', '')), safe='')}"
                     f"&imdb={quote(id, safe='')}"
                     f"&title={quote(title, safe='')}"
+                    f"&source={quote(str(res.get('source', '')), safe='')}"
+                    f"&nzb_url={quote(str(res.get('nzb_url', '')), safe='')}"
                 )
                 usenet_streams.append({
                     "name": _stream_notice_name(kodi, "[Torrin↓ Usenet]", "[↓] Torrin Usenet"),

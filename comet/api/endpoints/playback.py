@@ -294,6 +294,8 @@ async def usenet_play(
     rid: str = Query(),
     imdb: str = Query(default=""),
     title: str = Query(default=""),
+    source: str = Query(default=""),
+    nzb_url: str = Query(default=""),
 ):
     config = await resolve_config(b64config, strict_b64config=True)
     if not config:
@@ -306,11 +308,11 @@ async def usenet_play(
 
     session = await http_client_manager.get_session()
 
-    stream_url = await stream_usenet(session, rid, title, imdb, api_key)
+    stream_url = await stream_usenet(session, rid, title, imdb, api_key, source, nzb_url)
     if stream_url:
         return RedirectResponse(georoute_url(request, stream_url), status_code=302)
 
-    job = await grab_usenet(session, rid, title, imdb, api_key)
+    job = await grab_usenet(session, rid, title, imdb, api_key, source, nzb_url)
     if job is None:
         return build_status_video_response(
             ["DOWNLOAD_SERVER_ERROR"], default_key="DOWNLOAD_SERVER_ERROR"
