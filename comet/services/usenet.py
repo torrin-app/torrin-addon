@@ -97,26 +97,6 @@ async def grab_usenet(session: aiohttp.ClientSession, result_id: str, title: str
         return None
 
 
-async def stream_usenet(session: aiohttp.ClientSession, result_id: str, title: str, imdb_id: str, api_key: str, source: str = "", nzb_url: str = "") -> str:
-    """Ask Torrin for a live stream URL for a usenet result. Empty if streaming is off or the release is packed."""
-    if not settings.STREMTHRU_URL:
-        return ""
-
-    try:
-        url = f"{settings.STREMTHRU_URL}/api/usenet/stream"
-        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-        import json
-        body = json.dumps({"id": result_id, "title": title, "imdb_id": imdb_id, "source": source, "nzb_url": nzb_url})
-        async with session.post(url, headers=headers, data=body, timeout=aiohttp.ClientTimeout(total=30)) as resp:
-            if resp.status != 200:
-                return ""
-            data = await resp.json()
-            return data.get("url", "")
-    except Exception as e:
-        logger.warning(f"Usenet stream failed: {e}")
-        return ""
-
-
 def best_stream_url(job: dict | None) -> str:
     """Largest ready file's signed URL from a Torrin job, or empty if not ready."""
     if not job:
