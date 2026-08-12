@@ -149,6 +149,8 @@ class TorrentClawScraper(BaseScraper):
     /api/v1/search JSON, NOT torznab (torznab drops trueSpec).
     """
 
+    impersonate = "chrome"  # TorrentClaw is behind Cloudflare; plain requests get 403.
+
     def __init__(self, manager, session, url: str):
         super().__init__(manager, session, url)
 
