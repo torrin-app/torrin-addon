@@ -17,6 +17,44 @@ _CODEC_LABELS = {"hevc": "HEVC", "h265": "HEVC", "h264": "H.264", "avc": "H.264"
 _AUDIO_LABELS = {"truehd": "TrueHD", "eac3": "E-AC3", "ac3": "AC3", "dts": "DTS", "aac": "AAC", "flac": "FLAC", "opus": "Opus"}
 
 
+# Tier-3 fallback bitrates (bits/sec) by resolution, used only when neither a measured
+# bitrate nor a title runtime is available. Rough averages for torrent releases.
+_RES_BITRATE = {
+    "2160p": 45_000_000, "1440p": 20_000_000, "1080p": 10_000_000,
+    "720p": 4_000_000, "576p": 2_500_000, "480p": 1_500_000,
+}
+
+
+def median_runtime(torrents: dict):
+    """Representative runtime (sec) from any scanned release's duration, so we can apply
+    size/runtime to the rest. Movies ~constant runtime; range-gate out samples/packs."""
+    ds = sorted(
+        d
+        for t in torrents.values()
+        for d in [(t.get("media_info") or {}).get("duration_sec")]
+        if d and 600 <= d <= 4 * 3600
+    )
+    return ds[len(ds) // 2] if ds else None
+
+
+def estimate_bitrate(size, runtime_sec, resolution):
+    """Tier 2: real average = size*8/runtime. Tier 3: resolution table. bps or None."""
+    if size and runtime_sec and runtime_sec > 0:
+        return int(size * 8 / runtime_sec)
+    return _RES_BITRATE.get(resolution)
+
+
+def ensure_bitrate(torrent: dict, parsed, runtime_sec):
+    """Fill media_info.bitrate for a stream that lacks a measured one (flagged estimated)."""
+    mi = torrent.get("media_info") or {}
+    if mi.get("bitrate"):
+        return
+    res = mi.get("resolution") or getattr(parsed, "resolution", None)
+    est = estimate_bitrate(torrent.get("size"), runtime_sec, res)
+    if est:
+        torrent["media_info"] = {**mi, "bitrate": est, "bitrate_estimated": True}
+
+
 def format_media_info_line(media_info: dict) -> str:
     if not media_info:
         return ""
@@ -31,7 +69,8 @@ def format_media_info_line(media_info: dict) -> str:
             parts.append(_CODEC_LABELS.get(vc, vc.upper()))
         br = media_info.get("bitrate")
         if br:
-            parts.append(f"{round(br / 1e6)} Mbps")
+            prefix = "~" if media_info.get("bitrate_estimated") else ""
+            parts.append(f"{prefix}{round(br / 1e6)} Mbps")
         dur = media_info.get("duration_sec")
         if dur:
             m = round(dur / 60)

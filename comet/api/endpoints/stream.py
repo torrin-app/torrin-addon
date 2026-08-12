@@ -31,7 +31,13 @@ from comet.utils.formatting import (format_chilllink, format_title,
                                     get_formatted_components_plain)
 from comet.utils.http_client import http_client_manager
 from comet.utils.network import get_client_ip
-from comet.utils.parsing import apply_media_info, format_media_info_line, parse_media_id
+from comet.utils.parsing import (
+    apply_media_info,
+    ensure_bitrate,
+    format_media_info_line,
+    median_runtime,
+    parse_media_id,
+)
 
 streams = APIRouter()
 STREMIO_API_PREFIX = settings.STREMIO_API_PREFIX
@@ -1058,20 +1064,21 @@ async def stream(
 
     min_bitrate = float(config.get("minBitrate") or 0)
     max_bitrate = float(config.get("maxBitrate") or 0)
+    title_runtime = median_runtime(torrents)
 
     for info_hash in ranked_info_hashes:
         torrent = torrents[info_hash]
-        # Bitrate window (Mbps). Only applied where the bitrate is known (TC-enriched
-        # or ffprobe'd); streams with unknown bitrate always pass so we never hide them.
-        if min_bitrate or max_bitrate:
-            br = (torrent.get("media_info") or {}).get("bitrate")
-            if br:
-                mbps = br / 1e6
-                if (min_bitrate and mbps < min_bitrate) or (
-                    max_bitrate and mbps > max_bitrate
-                ):
-                    continue
         rtn_data = torrent["parsed"]
+        # Give every stream a bitrate: measured (TC/ffprobe) when present, else real
+        # size/runtime, else a resolution estimate. So the label and the bitrate window
+        # apply to all streams, not just the enriched ones.
+        ensure_bitrate(torrent, rtn_data, title_runtime)
+        br = (torrent.get("media_info") or {}).get("bitrate")
+        if br and (
+            (min_bitrate and br / 1e6 < min_bitrate)
+            or (max_bitrate and br / 1e6 > max_bitrate)
+        ):
+            continue
         apply_media_info(rtn_data, torrent.get("media_info"))
         torrent_title = torrent["title"]
         torrent_size = torrent["size"]
