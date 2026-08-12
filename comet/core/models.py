@@ -132,6 +132,9 @@ class AppSettings(BaseSettings):
     STREMTHRU_SCRAPE_URL: Union[str, List[str]] = "https://stremthru.13377001.xyz"
     SCRAPE_TORRINCACHE: Union[bool, str] = False
     TORRINCACHE_URL: Union[str, List[str]] = "https://api.torrin.app"
+    SCRAPE_TORRENTCLAW: Union[bool, str] = False
+    TORRENTCLAW_URL: Union[str, List[str]] = "https://torrentclaw.com"
+    TORRENTCLAW_API_KEY: Optional[str] = ""
     SCRAPE_HDENCODE: Union[bool, str] = False
     HDENCODE_URL: Union[str, List[str]] = "https://api.torrin.app"
     SCRAPE_SCENERLS: Union[bool, str] = False
@@ -1043,6 +1046,8 @@ class ConfigModel(BaseModel):
     resultFormat: Optional[List[str]] = ["all"]
     maxResultsPerResolution: Optional[int] = 0
     maxSize: Optional[float] = 0
+    minBitrate: Optional[float] = 0
+    maxBitrate: Optional[float] = 0
     sortPriority: Optional[List[str]] = [
         "resolution",
         "quality",

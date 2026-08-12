@@ -1056,8 +1056,21 @@ async def stream(
 
     added_hashes = set()
 
+    min_bitrate = float(config.get("minBitrate") or 0)
+    max_bitrate = float(config.get("maxBitrate") or 0)
+
     for info_hash in ranked_info_hashes:
         torrent = torrents[info_hash]
+        # Bitrate window (Mbps). Only applied where the bitrate is known (TC-enriched
+        # or ffprobe'd); streams with unknown bitrate always pass so we never hide them.
+        if min_bitrate or max_bitrate:
+            br = (torrent.get("media_info") or {}).get("bitrate")
+            if br:
+                mbps = br / 1e6
+                if (min_bitrate and mbps < min_bitrate) or (
+                    max_bitrate and mbps > max_bitrate
+                ):
+                    continue
         rtn_data = torrent["parsed"]
         apply_media_info(rtn_data, torrent.get("media_info"))
         torrent_title = torrent["title"]

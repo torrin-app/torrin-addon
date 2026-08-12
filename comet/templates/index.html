@@ -570,6 +570,28 @@
         ></sl-input>
       </div>
 
+      <div class="form-item">
+        <sl-input
+          id="minBitrate"
+          type="number"
+          min="0"
+          value="0"
+          label="Min Bitrate (Mbps)"
+          placeholder="0 = any"
+        ></sl-input>
+      </div>
+
+      <div class="form-item">
+        <sl-input
+          id="maxBitrate"
+          type="number"
+          min="0"
+          value="0"
+          label="Max Bitrate (Mbps)"
+          placeholder="0 = any"
+        ></sl-input>
+      </div>
+
       <div
         class="form-item"
         {%
@@ -1367,6 +1389,8 @@
             const rankThreshold = document.getElementById("rankThreshold").value;
             const maxResultsPerResolution = document.getElementById("maxResultsPerResolution").value;
             const maxSize = document.getElementById("maxSize").value;
+            const minBitrate = document.getElementById("minBitrate").value;
+            const maxBitrate = document.getElementById("maxBitrate").value;
             const cachedOnly = document.getElementById("cachedOnly").checked;
             const sortCachedUncachedTogether = document.getElementById("sortCachedUncachedTogether").checked;
             const sortPriority = getSortPriority();
@@ -1387,6 +1411,8 @@
             return {
               maxResultsPerResolution: parseInt(maxResultsPerResolution),
               maxSize: parseFloat(maxSize * 1073741824),
+              minBitrate: parseFloat(minBitrate) || 0,
+              maxBitrate: parseFloat(maxBitrate) || 0,
               cachedOnly: cachedOnly,
               sortCachedUncachedTogether: sortCachedUncachedTogether,
               sortPriority: sortPriority,
@@ -1786,6 +1812,10 @@
               document.getElementById("maxResultsPerResolution").value = settings.maxResultsPerResolution;
             if (settings.maxSize !== null)
               document.getElementById("maxSize").value = settings.maxSize / 1073741824;
+            if (settings.minBitrate != null)
+              document.getElementById("minBitrate").value = settings.minBitrate;
+            if (settings.maxBitrate != null)
+              document.getElementById("maxBitrate").value = settings.maxBitrate;
 
             // Handle multi-debrid format
             if (settings.debridServices && settings.debridServices.length > 0) {
