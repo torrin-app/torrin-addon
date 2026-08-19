@@ -1333,7 +1333,7 @@ async def stream(
             found = await usenet_search_task
             seen = {(st.get("description") or "").split("\n")[0].lower() for st in final_streams}
             usenet_streams = []
-            for res in found[:5]:
+            for res in found:
                 name = res.get("title", "")
                 if not name or name.lower() in seen:
                     continue
