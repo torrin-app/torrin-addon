@@ -1330,6 +1330,8 @@ async def stream(
     # Inject uncached usenet (live indexer search; gated to plan server-side).
     if usenet_search_task is not None:
         try:
+            from RTN import parse as rtn_parse
+
             found = await usenet_search_task
             seen = {(st.get("description") or "").split("\n")[0].lower() for st in final_streams}
             usenet_streams = []
@@ -1338,20 +1340,23 @@ async def stream(
                 if not name or name.lower() in seen:
                     continue
                 seen.add(name.lower())
-                size_gb = (res.get("size") or 0) / 1e9
+                size = res.get("size") or 0
+                components = format_components(
+                    rtn_parse(name), name, None, size, "", config["resultFormat"]
+                )
                 play_url = (
                     f"{playback_base_url}/usenet/play"
                     f"?rid={quote(str(res.get('id', '')), safe='')}"
                     f"&imdb={quote(id, safe='')}"
-                    f"&title={quote(title, safe='')}"
+                    f"&title={quote(name, safe='')}"
                     f"&source={quote(str(res.get('source', '')), safe='')}"
                     f"&nzb_url={quote(str(res.get('nzb_url', '')), safe='')}"
                 )
                 usenet_streams.append({
                     "name": _stream_notice_name(kodi, "[Torrin↓ Usenet]", "[↓] Torrin Usenet"),
-                    "description": f"{name}\n💾 {size_gb:.2f} GB",
+                    "description": format_title_fn(components),
                     "url": play_url,
-                    "behaviorHints": {"notWebReady": True},
+                    "behaviorHints": {"notWebReady": True, "filename": name, "videoSize": size},
                 })
             insert_at = len(final_streams) - len(non_cached_results)
             final_streams[insert_at:insert_at] = usenet_streams
