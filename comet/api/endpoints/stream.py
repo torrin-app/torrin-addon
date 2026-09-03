@@ -35,6 +35,7 @@ from comet.utils.parsing import (
     apply_media_info,
     ensure_bitrate,
     format_media_info_line,
+    match_parsed_episode_target,
     median_runtime,
     parse_media_id,
 )
@@ -1313,15 +1314,83 @@ async def stream(
     # Inject cached usenet content (fast DB lookup, no indexer needed).
     if debrid_entries and settings.STREMTHRU_URL:
         try:
+            from RTN import parse as rtn_parse
+
             from comet.services.usenet import get_cached_usenet
+
             api_key = debrid_entries[0].get("apiKey", "")
-            cached = await get_cached_usenet(session, id, api_key)
+            cached_media_id = next(
+                (
+                    candidate
+                    for candidate in cache_media_ids
+                    if candidate.startswith("tt")
+                ),
+                media_only_id,
+            )
+            cached_target = cached_media_id
+            if (
+                media_type == "series"
+                and search_season is not None
+                and search_episode is not None
+            ):
+                cached_target = (
+                    f"{cached_media_id}:{search_season}:{search_episode}"
+                )
+
+            cached = await get_cached_usenet(session, cached_target, api_key)
             for c in cached:
+                file_name = c.get("file_name", "")
+                signed_url = c.get("signed_url", "")
+                if not file_name or not signed_url:
+                    continue
+
+                parsed = rtn_parse(file_name)
+                if (
+                    media_type == "series"
+                    and search_episode is not None
+                    and not match_parsed_episode_target(
+                        parsed,
+                        search_season,
+                        search_episode,
+                        target_air_date=target_air_date,
+                        reject_unknown_episode_files=True,
+                    )
+                ):
+                    continue
+
+                size = c.get("size")
+                if not isinstance(size, (int, float)) or size <= 0:
+                    size = None
+                components = format_components(
+                    parsed,
+                    file_name,
+                    None,
+                    size,
+                    "",
+                    config["resultFormat"],
+                )
+                behavior_hints = {
+                    "filename": file_name,
+                    "notWebReady": not file_name.lower().endswith(".mp4"),
+                }
+                if size is not None:
+                    behavior_hints["videoSize"] = size
+                if c.get("info_hash"):
+                    behavior_hints["bingeGroup"] = (
+                        f"torrin-blob|{c['info_hash']}"
+                    )
                 usenet_stream = {
-                    "name": _stream_notice_name(kodi, "[Torrin⚡]", "[⚡] Torrin Usenet"),
-                    "description": c.get("name", "") or c.get("file_name", ""),
-                    "url": c.get("signed_url", ""),
-                    "behaviorHints": {"notWebReady": c.get("file_name", "").endswith(".mkv")},
+                    "name": _build_stream_name(
+                        kodi,
+                        "",
+                        parsed.resolution or "",
+                        icon="⚡",
+                        formatted_components=components,
+                        status="C",
+                    ),
+                    "description": format_title_fn(components),
+                    "url": signed_url,
+                    "behaviorHints": behavior_hints,
                 }
                 final_streams.insert(0, usenet_stream)
         except Exception as e:
