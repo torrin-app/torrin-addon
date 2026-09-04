@@ -3,14 +3,14 @@ from comet.core.models import settings
 from comet.core.logger import logger
 
 
-async def get_cached_usenet(session: aiohttp.ClientSession, imdb_id: str, api_key: str) -> list:
-    """Check if any usenet content is cached for this IMDB ID."""
-    if not settings.STREMTHRU_URL or not imdb_id:
+async def get_cached_usenet(session: aiohttp.ClientSession, video_id: str, api_key: str) -> list:
+    """Check cached content for a movie ID or an episode-scoped video ID."""
+    if not settings.STREMTHRU_URL or not video_id:
         return []
 
     try:
         url = f"{settings.STREMTHRU_URL}/api/usenet/cached"
-        params = {"imdb": imdb_id}
+        params = {"imdb": video_id}
         headers = {"Authorization": f"Bearer {api_key}"}
         async with session.get(url, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=5)) as resp:
             if resp.status != 200:
