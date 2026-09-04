@@ -1061,6 +1061,27 @@ async def stream(
         selected_info_hashes if selected_info_hashes is not None else sorted_ranked
     )
 
+    if deduplicate_streams:
+        collapsed = []
+        file_key_pos = {}
+        for info_hash in ranked_info_hashes:
+            torrent = torrents[info_hash]
+            size = torrent.get("size")
+            name = (torrent.get("title") or "").strip().lower()
+            if not name or size is None:
+                collapsed.append(info_hash)
+                continue
+            key = (name, size)
+            pos = file_key_pos.get(key)
+            if pos is None:
+                file_key_pos[key] = len(collapsed)
+                collapsed.append(info_hash)
+            elif torrent.get("media_info") and not torrents[collapsed[pos]].get(
+                "media_info"
+            ):
+                collapsed[pos] = info_hash
+        ranked_info_hashes = collapsed
+
     added_hashes = set()
 
     min_bitrate = float(config.get("minBitrate") or 0)
