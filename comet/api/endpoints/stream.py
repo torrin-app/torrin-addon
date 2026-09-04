@@ -1061,29 +1061,6 @@ async def stream(
         selected_info_hashes if selected_info_hashes is not None else sorted_ranked
     )
 
-    if deduplicate_streams:
-        collapsed = []
-        file_key_pos = {}
-        for info_hash in ranked_info_hashes:
-            torrent = torrents[info_hash]
-            size = torrent.get("size")
-            parsed = torrent.get("parsed")
-            raw = getattr(parsed, "raw_title", "") if parsed is not None else ""
-            name = (raw or torrent.get("title") or "").strip().lower()
-            if not name or size is None:
-                collapsed.append(info_hash)
-                continue
-            key = (name, size)
-            pos = file_key_pos.get(key)
-            if pos is None:
-                file_key_pos[key] = len(collapsed)
-                collapsed.append(info_hash)
-            elif torrent.get("media_info") and not torrents[collapsed[pos]].get(
-                "media_info"
-            ):
-                collapsed[pos] = info_hash
-        ranked_info_hashes = collapsed
-
     added_hashes = set()
 
     min_bitrate = float(config.get("minBitrate") or 0)
@@ -1454,6 +1431,27 @@ async def stream(
             final_streams[insert_at:insert_at] = usenet_streams
         except Exception as e:
             logger.warning(f"Usenet live search failed: {e}")
+
+    if deduplicate_streams:
+        seen = {}
+        deduped = []
+        for st in final_streams:
+            bh = st.get("behaviorHints") or {}
+            fn = (bh.get("filename") or "").strip().lower()
+            size = bh.get("videoSize")
+            if not fn or size is None:
+                deduped.append(st)
+                continue
+            key = (fn, size)
+            pos = seen.get(key)
+            if pos is None:
+                seen[key] = len(deduped)
+                deduped.append(st)
+            elif len(st.get("description") or "") > len(
+                deduped[pos].get("description") or ""
+            ):
+                deduped[pos] = st
+        final_streams = deduped
 
     final_streams = georoute_streams(request, final_streams)
     has_results = len(final_streams) > 0
