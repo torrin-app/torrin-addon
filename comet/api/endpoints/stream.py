@@ -1067,7 +1067,9 @@ async def stream(
         for info_hash in ranked_info_hashes:
             torrent = torrents[info_hash]
             size = torrent.get("size")
-            name = (torrent.get("title") or "").strip().lower()
+            parsed = torrent.get("parsed")
+            raw = getattr(parsed, "raw_title", "") if parsed is not None else ""
+            name = (raw or torrent.get("title") or "").strip().lower()
             if not name or size is None:
                 collapsed.append(info_hash)
                 continue
