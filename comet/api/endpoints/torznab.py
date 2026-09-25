@@ -1,3 +1,6 @@
+from urllib.parse import quote
+
+import aiohttp
 from fastapi import APIRouter, Header, HTTPException, Query
 
 from comet.core.logger import logger
@@ -8,12 +11,32 @@ from comet.utils.http_client import http_client_manager
 
 router = APIRouter()
 
+_CINEMETA_SEARCH = "https://v3-cinemeta.strem.io/catalog/{type}/top/search={q}.json"
+
 
 def _verify_key(api_key: str | None):
     if not settings.TORZNAB_API_KEY:
         raise HTTPException(status_code=503, detail="torznab search disabled")
     if api_key != settings.TORZNAB_API_KEY:
         raise HTTPException(status_code=401, detail="invalid api key")
+
+
+async def _imdb_from_query(session, media_type: str, q: str) -> str:
+    try:
+        url = _CINEMETA_SEARCH.format(type=media_type, q=quote(q))
+        async with session.get(
+            url, timeout=aiohttp.ClientTimeout(total=8)
+        ) as resp:
+            if resp.status != 200:
+                return ""
+            data = await resp.json()
+    except Exception:
+        return ""
+    for meta in data.get("metas", []):
+        mid = meta.get("id", "")
+        if mid.startswith("tt"):
+            return mid
+    return ""
 
 
 @router.get("/torznab/search", tags=["Torznab"], summary="Torrent candidate search")
@@ -29,6 +52,10 @@ async def torznab_search(
     _verify_key(x_api_key)
 
     media_type = "series" if search_type == "series" else "movie"
+    session = await http_client_manager.get_session()
+
+    if not imdb and q:
+        imdb = await _imdb_from_query(session, media_type, q)
     if not imdb:
         return {"results": []}
 
@@ -39,7 +66,6 @@ async def torznab_search(
     else:
         media_id = imdb
 
-    session = await http_client_manager.get_session()
     metadata, aliases = await MetadataScraper(session).fetch_metadata_and_aliases(
         media_type, media_id, imdb, season, ep
     )
