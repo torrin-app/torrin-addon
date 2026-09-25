@@ -11,7 +11,7 @@ from starlette.requests import Request
 
 from comet.api.endpoints import (admin, base, catalog, chilllink, cometnet,
                                  cometnet_ui, config, debrid_sync, kodi,
-                                 manifest, playback)
+                                 manifest, playback, torznab)
 from comet.api.endpoints import stream as streams_router
 from comet.background_scraper.worker import background_scraper
 from comet.cometnet.manager import init_cometnet_service
@@ -232,6 +232,7 @@ app.mount("/static", StaticFiles(directory="comet/templates"), name="static")
 app.include_router(base.router)
 app.include_router(config.router)
 app.include_router(admin.router)
+app.include_router(torznab.router)
 app.include_router(cometnet.router)
 app.include_router(cometnet_ui.router)
 app.include_router(kodi.router)

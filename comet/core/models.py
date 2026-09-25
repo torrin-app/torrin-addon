@@ -75,6 +75,7 @@ class AppSettings(BaseSettings):
     PUBLIC_API_TOKEN: Optional[str] = None
     PUBLIC_API_TOKEN_FILE: Optional[str] = "data/public_api_token.txt"
     PUBLIC_METRICS_API: Optional[bool] = False
+    TORZNAB_API_KEY: Optional[str] = None
     DATABASE_TYPE: Optional[str] = "sqlite"
     DATABASE_URL: Optional[str] = "username:password@hostname:port"
     DATABASE_PATH: Optional[str] = "data/comet.db"
