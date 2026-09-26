@@ -12,6 +12,7 @@ from comet.metadata.episode_index import EpisodeIndexService
 from comet.services.debrid_cache import cache_availability
 from comet.services.filtering import quick_alias_match
 from comet.services.torrent_manager import torrent_update_queue
+from comet.utils.file_selection import apply_backend_episode_match
 from comet.utils.parsing import (ensure_multi_language, is_video,
                                  match_parsed_episode_target, parse_media_id)
 
@@ -223,6 +224,7 @@ class StremThru:
         sources_map: dict,
         target_air_date: str | None = None,
         titles_map: dict | None = None,
+        episode_statuses: dict | None = None,
     ):
         await self.check_premium()
 
@@ -260,14 +262,27 @@ class StremThru:
             target_air_date=target_air_date,
         )
 
+        if episode_statuses is not None and is_episode_request:
+            requested_hashes = set(torrent_hashes)
+            for result in availability:
+                for torrent in result:
+                    if (
+                        torrent.get("hash") in requested_hashes
+                        and torrent.get("episode_sid") == self.sid
+                        and torrent.get("episode_status") == "no_match"
+                        and torrent.get("episode_scope") == "available_files"
+                        and torrent.get("status") == "unknown"
+                    ):
+                        episode_statuses[torrent["hash"]] = "no_match"
+
         filenames_to_parse = []
         if not is_offcloud:
             for result in availability:
                 for torrent in result:
-                    if torrent["status"] != "cached":
+                    if torrent["status"] not in ("cached", "acceleratable"):
                         continue
-                    for file in torrent["files"]:
-                        filename = file["name"].split("/")[-1]
+                    for file in torrent.get("files", []):
+                        filename = file["name"].replace("\\", "/").split("/")[-1]
                         if not is_video(filename) or "sample" in filename.lower():
                             continue
                         filenames_to_parse.append(filename)
@@ -332,13 +347,15 @@ class StremThru:
                         files.append(file_info)
                         continue
 
-                    for file in torrent["files"]:
-                        filename = file["name"].split("/")[-1]
+                    for file in torrent.get("files", []):
+                        filename = file["name"].replace("\\", "/").split("/")[-1]
 
                         if not is_video(filename) or "sample" in filename.lower():
                             continue
 
-                        filename_parsed = next(parsed_iter)
+                        filename_parsed = apply_backend_episode_match(
+                            next(parsed_iter), file, self.sid
+                        )
 
                         parsed_season = (
                             filename_parsed.seasons[0]
@@ -372,6 +389,11 @@ class StremThru:
                             "info_hash": hash,
                             "index": index,
                             "title": filename,
+                            "release_name": file.get("release_name") or torrent.get("name"),
+                            "release_size": file.get("release_size"),
+                            "episode_match": self.sid if is_episode_request else None,
+                            "media_info": file.get("media_info"),
+                            "stream_source": file.get("stream_source"),
                             "size": size,
                             "season": season,
                             "episode": episode,
@@ -504,6 +526,7 @@ class StremThru:
                 if not file_link:
                     continue
 
+                parsed = apply_backend_episode_match(parsed, file, self.sid)
                 file_season = parsed.seasons[0] if parsed.seasons else None
                 file_episode = parsed.episodes[0] if parsed.episodes else None
 
@@ -601,7 +624,11 @@ class StremThru:
                 return
 
             # Sort by score descending
-            scored_files.sort(key=lambda x: x["score"], reverse=True)
+            scored_files.sort(
+                key=lambda x: (x["score"], x["size"] or 0)
+                if is_episode_request else (x["size"] or 0, x["score"]),
+                reverse=True,
+            )
 
             # Select best file
             target_file = scored_files[0]

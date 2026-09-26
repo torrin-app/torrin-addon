@@ -8,6 +8,7 @@ from comet.core.logger import logger
 from comet.core.models import settings
 from comet.services.ranking import RELEASE_SOURCE_TRACKERS
 from comet.utils.languages import COUNTRY_TO_LANGUAGE
+from comet.utils.file_selection import apply_backend_episode_match
 from comet.utils.parsing import ensure_multi_language
 
 if settings.RTN_FILTER_DEBUG:
@@ -225,6 +226,10 @@ def filter_worker(
         # temp fix while waiting for RTN to fix their parsing
         try:
             parsed = _parse_with_cache(torrent_title)
+            if torrent.get("tracker") == "Torrin":
+                parsed = apply_backend_episode_match(
+                    parsed, torrent, torrent.get("requested_sid")
+                )
         except ValidationError:
             _log_exclusion(f"❌ Rejected (Parse Error) | {torrent_title}")
             continue

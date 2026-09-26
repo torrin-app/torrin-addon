@@ -7,7 +7,7 @@ from comet.debrid.manager import retrieve_debrid_availability
 from comet.services.debrid_cache import (cache_availability,
                                          get_cached_availability,
                                          get_cached_availability_any_service)
-from comet.utils.parsing import ensure_multi_language
+from comet.utils.parsing import ensure_multi_language, is_video
 
 
 class DebridService:
@@ -87,6 +87,18 @@ class DebridService:
         target_air_date: str | None = None,
         titles_map: dict | None = None,
     ) -> set[str]:
+        episode_statuses = {}
+        if torrents is not None:
+            for torrent in torrents.values():
+                if not is_video(torrent.get("title") or "") and not torrent.get("release_size"):
+                    torrent["release_size"] = torrent.get("size")
+                if not torrent.get("release_name"):
+                    torrent["release_name"] = torrent.get("title")
+                torrent.get("selected_files", {}).pop(self.debrid_service, None)
+        if torrents is not None:
+            for info_hash in info_hashes:
+                if torrent := torrents.get(info_hash):
+                    torrent.get("episode_statuses", {}).pop(self.debrid_service, None)
         availability = await retrieve_debrid_availability(
             session,
             media_id,
@@ -100,21 +112,32 @@ class DebridService:
             sources_map,
             target_air_date=target_air_date,
             titles_map=titles_map,
+            episode_statuses=episode_statuses,
         )
+
+        if torrents is not None:
+            for info_hash, status in episode_statuses.items():
+                if info_hash in torrents:
+                    torrents[info_hash].setdefault("episode_statuses", {})[
+                        self.debrid_service
+                    ] = status
 
         if len(availability) == 0:
             return set()
 
         info_hash_set = set(info_hashes)
         cached_hashes = set()
+        # Choose a file within each hash, never compare episode size to pack size.
+        selected = {}
         for file in availability:
-            file_season = file["season"]
-            file_episode = file["episode"]
-            if (file_season is not None and file_season != season) or (
-                file_episode is not None and file_episode != episode
+            if (file["season"] is not None and file["season"] != season) or (
+                file["episode"] is not None and file["episode"] != episode
             ):
                 continue
-
+            previous = selected.get(file["info_hash"])
+            if previous is None or (file.get("size") or 0) > (previous.get("size") or 0):
+                selected[file["info_hash"]] = file
+        for file in selected.values():
             info_hash = file["info_hash"]
             if info_hash not in info_hash_set:
                 continue
@@ -124,9 +147,16 @@ class DebridService:
                 if torrent is None:
                     continue
 
-                # Track cache tier (cached = on R2, acceleratable = on a provider).
-                if "cache_tier" in file:
-                    torrent["cache_tier"] = file["cache_tier"]
+                torrent.get("episode_statuses", {}).pop(self.debrid_service, None)
+                # Track readiness separately for each provider.
+                tier = file.get("cache_tier", "cached")
+                tiers = torrent.setdefault("cache_tiers", {})
+                tiers[self.debrid_service] = tier
+                if file.get("stream_source") in ("cache", "cairn"):
+                    torrent.setdefault("stream_sources", {})[self.debrid_service] = file["stream_source"]
+                torrent["cache_tier"] = (
+                    "cached" if "cached" in tiers.values() else "acceleratable"
+                )
 
                 merged_parsed = self._merge_parsed(
                     torrent.get("parsed"), file["parsed"]
@@ -134,14 +164,27 @@ class DebridService:
                 if merged_parsed is not None:
                     torrent["parsed"] = merged_parsed
 
+                if file.get("title"):
+                    torrent.setdefault("selected_files", {})[self.debrid_service] = {
+                        "title": file["title"],
+                        "size": file.get("size"),
+                        "parsed": merged_parsed,
+                        "fileIndex": self._coerce_file_index(file.get("index")),
+                        "media_info": file.get("media_info"),
+                        "release_name": file.get("release_name") or torrent.get("release_name"),
+                        "release_size": file.get("release_size") or torrent.get("release_size"),
+                        "episode_match": file.get("episode_match"),
+                    }
+
+                if file.get("media_info"):
+                    torrent["media_info"] = file["media_info"]
+
                 file_index = self._coerce_file_index(file["index"])
-                file_size = file["size"] if file["size"] is not None else 0
-                existing_size = torrent.get("size") or 0
-                if file_index is not None and file_size >= existing_size:
+                if file_index is not None:
                     torrent["fileIndex"] = file_index
-                if file["title"] is not None and file_size >= existing_size:
+                if file["title"] is not None:
                     torrent["title"] = file["title"]
-                if file["size"] is not None and file_size >= existing_size:
+                if file["size"] is not None:
                     torrent["size"] = file["size"]
 
         asyncio.create_task(cache_availability(self.debrid_service, availability))
