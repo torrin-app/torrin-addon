@@ -13,21 +13,48 @@ from urllib.parse import urlparse, urlunparse
 from comet.core.models import settings
 
 
+_REGION_NAMES = {
+    "eu": "Europe",
+    "za": "Africa",
+    "in": "India",
+    "us": "United States",
+    "sg": "Singapore",
+    "br": "Brazil",
+}
+
+
+def _derive_label(host):
+    code = host.split(".", 1)[0].rsplit("-", 1)[-1].lower()
+    return _REGION_NAMES.get(code, code.upper())
+
+
 def _parse_relays():
     relays = []
     for part in (settings.TORRIN_STREAM_RELAYS or "").split(","):
         bits = part.strip().split(":")
-        if len(bits) != 3:
+        if len(bits) < 3:
             continue
         try:
-            relays.append((bits[0], float(bits[1]), float(bits[2])))
+            host, lat, lng = bits[0], float(bits[1]), float(bits[2])
         except ValueError:
             continue
+        label = bits[3] if len(bits) >= 4 and bits[3] else _derive_label(host)
+        relays.append((host, lat, lng, label))
     return relays
 
 
 RELAYS = _parse_relays()
-RELAY_HOSTS = {host for host, _, _ in RELAYS}
+RELAY_HOSTS = {host for host, _, _, _ in RELAYS}
+
+
+def relay_options():
+    return [{"value": host, "label": label} for host, _, _, label in RELAYS]
+
+
+def pinned_host(region):
+    if region and region != "auto" and region in RELAY_HOSTS:
+        return region
+    return None
 
 
 def _haversine_km(lat1, lng1, lat2, lng2):
@@ -46,9 +73,12 @@ def nearest_host(lat, lng):
     return min(RELAYS, key=lambda r: _haversine_km(lat, lng, r[1], r[2]))[0]
 
 
-def _pick_host(request):
+def _pick_host(request, region=None):
     if not RELAYS:
         return None
+    pinned = pinned_host(region)
+    if pinned:
+        return pinned
     try:
         lat = float(request.headers.get("cf-iplatitude"))
         lng = float(request.headers.get("cf-iplongitude"))
@@ -57,10 +87,10 @@ def _pick_host(request):
     return nearest_host(lat, lng)
 
 
-def georoute_url(request, url):
+def georoute_url(request, url, region=None):
     if not url:
         return url
-    host = _pick_host(request)
+    host = _pick_host(request, region)
     if not host:
         return url
     parsed = urlparse(url)
@@ -69,12 +99,12 @@ def georoute_url(request, url):
     return url
 
 
-def georoute_streams(request, streams):
-    host = _pick_host(request)
+def georoute_streams(request, streams, region=None):
+    host = _pick_host(request, region)
     if not host:
         return streams
     for stream in streams:
         url = stream.get("url")
         if url:
-            stream["url"] = georoute_url(request, url)
+            stream["url"] = georoute_url(request, url, region)
     return streams

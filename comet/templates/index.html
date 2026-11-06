@@ -1054,6 +1054,20 @@
             help-text="When watching a single episode, also show season packs and multi-season packs in results. The correct episode file will be selected automatically."
             >Show Season Packs</sl-checkbox
           >
+          {% if streamRegions %}
+          <sl-select
+            id="streamRegion"
+            value="auto"
+            label="Stream Region"
+            hoist
+            help-text="Pick which server streams play from. Auto uses the one closest to you; choose a specific region if your nearest one is slow."
+          >
+            <sl-option value="auto">Auto (closest to you)</sl-option>
+            {% for relay in streamRegions %}
+            <sl-option value="{{ relay.value }}">{{ relay.label }}</sl-option>
+            {% endfor %}
+          </sl-select>
+          {% endif %}
           <sl-select
             id="resultFormat"
             multiple
@@ -1400,6 +1414,8 @@
             const removeUnknownLanguages = document.getElementById("removeUnknownLanguages").checked;
             const resultFormat = Array.from(document.getElementById("resultFormat").selectedOptions).map(option => option.value);
             const debridStreamProxyPassword = document.getElementById("debridStreamProxyPassword").value;
+            const streamRegionEl = document.getElementById("streamRegion");
+            const streamRegion = streamRegionEl ? streamRegionEl.value : "auto";
 
             const debridServices = getDebridServices();
             const enableTorrentEl = document.getElementById("enableTorrent");
@@ -1419,6 +1435,7 @@
               removeTrash: removeTrash,
               showSeasonPacks: showSeasonPacks,
               resultFormat: selectedResultFormat,
+              streamRegion: streamRegion,
               debridServices: debridServices,
               enableTorrent: enableTorrent,
               deduplicateStreams: deduplicateStreams,
@@ -1848,6 +1865,9 @@
 
             if (settings.debridStreamProxyPassword !== null)
               document.getElementById("debridStreamProxyPassword").value = settings.debridStreamProxyPassword;
+            const streamRegionEl = document.getElementById("streamRegion");
+            if (streamRegionEl && settings.streamRegion)
+              streamRegionEl.value = settings.streamRegion;
             if (settings.resultFormat !== null && settings.resultFormat != "all")
               document.getElementById("resultFormat").value = settings.resultFormat;
             updateResultFormatPreview();

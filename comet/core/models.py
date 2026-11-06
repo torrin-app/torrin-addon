@@ -1068,6 +1068,7 @@ class ConfigModel(BaseModel):
     scrapeDebridAccountTorrents: Optional[bool] = False
 
     debridStreamProxyPassword: Optional[str] = ""
+    streamRegion: Optional[str] = "auto"
     languages: Optional[dict] = rtn_settings_default_dumped["languages"]
     resolutions: Optional[dict] = rtn_settings_default_dumped["resolutions"]
     options: Optional[dict] = rtn_settings_default_dumped["options"]
