@@ -7,6 +7,7 @@ from fastapi.templating import Jinja2Templates
 from comet.core.config_validation import (get_addon_config_b64, resolve_config,
                                           save_addon_config)
 from comet.core.models import settings, web_config
+from comet.utils import georoute
 from comet.utils.cache import CachePolicies
 from comet.utils.signed_session import (derive_session_secret,
                                         encode_signed_session,
@@ -155,6 +156,7 @@ async def configure(
             "proxyDebridStream": settings.PROXY_DEBRID_STREAM,
             "disableTorrentStreams": settings.DISABLE_TORRENT_STREAMS,
             "stremioApiPrefix": settings.STREMIO_API_PREFIX,
+            "streamRegions": georoute.relay_options(),
         },
     )
 

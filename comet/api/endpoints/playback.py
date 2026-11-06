@@ -279,7 +279,10 @@ async def playback(
             ip=ip,
         )
 
-    return RedirectResponse(georoute_url(request, download_url), status_code=302)
+    return RedirectResponse(
+        georoute_url(request, download_url, config.get("streamRegion")),
+        status_code=302,
+    )
 
 
 @router.get(
@@ -323,7 +326,10 @@ async def usenet_play(
         polls += 1
 
     if url:
-        return RedirectResponse(georoute_url(request, url), status_code=302)
+        return RedirectResponse(
+            georoute_url(request, url, config.get("streamRegion")),
+            status_code=302,
+        )
     return build_status_video_response(
         ["MEDIA_NOT_CACHED_YET"], default_key="MEDIA_NOT_CACHED_YET"
     )
