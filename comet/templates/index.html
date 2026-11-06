@@ -1555,6 +1555,11 @@
               }
             }
 
+            // streamRegion default is "auto"
+            if (settings.streamRegion && settings.streamRegion !== "auto") {
+              return false;
+            }
+
             return true;
           }
 
