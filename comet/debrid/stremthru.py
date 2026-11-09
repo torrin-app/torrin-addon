@@ -207,7 +207,9 @@ class StremThru:
                 headers=self._headers(),
             )
             payload = await response.json()
-            data = payload["data"]
+            data = payload.get("data")
+            if not data:
+                return None, 0
             return data["items"], int(data["total_items"])
         except Exception as e:
             logger.warning(
