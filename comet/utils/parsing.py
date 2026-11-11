@@ -156,6 +156,8 @@ def is_video(title: str):
         ".gif",
         ".gifv",
         ".m2v",
+        ".m2ts",
+        ".ts",
         ".m4p",
         ".m4v",
         ".mkv",
@@ -180,7 +182,7 @@ def is_video(title: str):
         ".wmv",
         ".yuv",
     )
-    return title.endswith(video_extensions)
+    return title.lower().endswith(video_extensions)
 
 
 def default_dump(obj):

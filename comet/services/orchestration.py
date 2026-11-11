@@ -115,6 +115,8 @@ class TorrentManager:
             self.torrents[info_hash] = {
                 "fileIndex": torrent["fileIndex"],
                 "title": torrent["title"],
+                "release_name": torrent.get("release_name") or (existing or {}).get("release_name"),
+                "release_size": torrent.get("release_size") or (existing or {}).get("release_size"),
                 "seeders": torrent["seeders"],
                 "size": torrent["size"],
                 "tracker": torrent["tracker"],
