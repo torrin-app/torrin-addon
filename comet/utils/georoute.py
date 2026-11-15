@@ -5,6 +5,10 @@ so swapping the host between relays is safe. Viewer coordinates come from the
 Cloudflare "Add visitor location headers" managed transform (CF-IPLatitude /
 CF-IPLongitude). Relays are configured via TORRIN_STREAM_RELAYS as
 "host:lat:lng,host:lat:lng" — add a relay by adding an entry.
+
+When TORRIN_CDN_HOST is set, unpinned URLs are instead emitted on that
+geo-neutral host and the relay is chosen at fetch time by a CF edge 302, so the
+viewing device's own IP decides (correct even behind a proxied aggregator).
 """
 
 import math
@@ -79,6 +83,9 @@ def _pick_host(request, region=None):
     pinned = pinned_host(region)
     if pinned:
         return pinned
+    cdn = (settings.TORRIN_CDN_HOST or "").strip()
+    if cdn:
+        return cdn
     try:
         lat = float(request.headers.get("cf-iplatitude"))
         lng = float(request.headers.get("cf-iplongitude"))

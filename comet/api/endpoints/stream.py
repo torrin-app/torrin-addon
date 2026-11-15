@@ -1453,7 +1453,7 @@ async def stream(
                 deduped[pos] = st
         final_streams = deduped
 
-    final_streams = georoute_streams(request, final_streams)
+    final_streams = georoute_streams(request, final_streams, config.get("streamRegion"))
     has_results = len(final_streams) > 0
 
     return _stream_response(
