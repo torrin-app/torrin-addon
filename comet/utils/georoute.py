@@ -6,15 +6,19 @@ Cloudflare "Add visitor location headers" managed transform (CF-IPLatitude /
 CF-IPLongitude). Relays are configured via TORRIN_STREAM_RELAYS as
 "host:lat:lng,host:lat:lng" — add a relay by adding an entry.
 
-When TORRIN_CDN_HOST is set, unpinned URLs are instead emitted on that
-geo-neutral host and the relay is chosen at fetch time by a CF edge 302, so the
-viewing device's own IP decides (correct even behind a proxied aggregator).
+Aggregators (aiostreams) proxy the list request, so Cloudflare's geo would point
+at the aggregator, not the viewer. They forward the real fetcher's IP, so that
+is located first and only falls back to the Cloudflare headers for direct
+viewers. aiostreams forwards the IP of whoever actually fetches the bytes (the
+viewer when direct, the proxy when proxied), so routing on it is correct either
+way.
 """
 
 import math
 from urllib.parse import urlparse, urlunparse
 
 from comet.core.models import settings
+from comet.utils import geoip
 
 
 _REGION_NAMES = {
@@ -77,15 +81,29 @@ def nearest_host(lat, lng):
     return min(RELAYS, key=lambda r: _haversine_km(lat, lng, r[1], r[2]))[0]
 
 
+def _forwarded_ip(request):
+    ip = request.headers.get("x-aiostreams-user-ip")
+    if ip and ip.strip():
+        return ip.strip()
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        first = xff.split(",")[0].strip()
+        if first and first != request.headers.get("cf-connecting-ip"):
+            return first
+    return None
+
+
 def _pick_host(request, region=None):
     if not RELAYS:
         return None
     pinned = pinned_host(region)
     if pinned:
         return pinned
-    cdn = (settings.TORRIN_CDN_HOST or "").strip()
-    if cdn:
-        return cdn
+    fip = _forwarded_ip(request)
+    if fip:
+        loc = geoip.locate(fip)
+        if loc:
+            return nearest_host(loc[0], loc[1])
     try:
         lat = float(request.headers.get("cf-iplatitude"))
         lng = float(request.headers.get("cf-iplongitude"))

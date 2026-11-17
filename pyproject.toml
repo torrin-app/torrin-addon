@@ -31,6 +31,7 @@ dependencies = [
     "miniupnpc",
     "aiofiles",
     "torrent-parse-rank",
+    "maxminddb",
 ]
 
 [tool.uv.sources]

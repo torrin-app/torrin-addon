@@ -146,11 +146,9 @@ class AppSettings(BaseSettings):
     TORRIN_STREAM_RELAYS: Optional[str] = (
         "beam-eu.torrin.app:50.9:6.9,beam-za.torrin.app:-26.2:28.0,beam-sg.torrin.app:1.35:103.8"
     )
-    # When set, unpinned stream URLs are emitted on this geo-neutral host instead
-    # of a baked-in relay, so the viewing device's own IP picks the relay at fetch
-    # time (a CF edge 302). This keeps proxied clients (aiostreams and other
-    # aggregators) from routing every viewer to the relay nearest the proxy.
-    TORRIN_CDN_HOST: Optional[str] = ""
+    # Country/continent geo db for locating a forwarded viewer IP (aggregators),
+    # so relay routing follows the viewer, not the proxy. Shipped in the image.
+    GEOIP_DB_PATH: Optional[str] = "/app/data/dbip-country-lite.mmdb"
     # Pre-warm: when the background scraper finds a good torrent for a popular
     # title, also tell Torrin to cache the actual file (so the first user gets an
     # instant stream). Gated by TORRIN_PREWARM; auths with Torrin's internal secret.
