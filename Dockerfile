@@ -16,9 +16,9 @@ ENV TZ=UTC \
 ARG TARGETPLATFORM
 RUN --mount=type=cache,target=/root/.cache/uv,id=uv-${TARGETPLATFORM},sharing=locked uv sync --frozen
 
-RUN set -eu; mkdir -p /app/data; y=$(date +%Y); m=$(date +%m); ok=0; \
+RUN set -eu; mkdir -p /app/data; y=$(date +%Y); m=$(date +%m); m=${m#0}; ok=0; \
     for i in 0 1 2 3; do \
-      mm=$((10#$m - i)); yy=$y; while [ $mm -le 0 ]; do mm=$((mm + 12)); yy=$((yy - 1)); done; \
+      mm=$((m - i)); yy=$y; while [ $mm -le 0 ]; do mm=$((mm + 12)); yy=$((yy - 1)); done; \
       ym=$(printf '%04d-%02d' $yy $mm); \
       if wget -qO /tmp/geo.gz "https://download.db-ip.com/free/dbip-country-lite-${ym}.mmdb.gz"; then \
         gunzip -c /tmp/geo.gz > /app/data/dbip-country-lite.mmdb; rm /tmp/geo.gz; ok=1; break; \
