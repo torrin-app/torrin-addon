@@ -13,6 +13,7 @@ from comet.core.logger import logger
 from comet.core.models import settings
 from comet.debrid.manager import get_debrid_credentials
 from comet.metadata.tmdb import DEFAULT_TMDB_READ_ACCESS_TOKEN
+from comet.services.anime import anime_mapper
 from comet.utils.http_client import http_client_manager
 from comet.utils.parsing import format_media_info_line
 
@@ -616,7 +617,16 @@ async def _get_show_meta(api_key: str, store_name: str, slug: str) -> dict | Non
         if tmdb_meta.get("releaseInfo"):
             meta["releaseInfo"] = tmdb_meta["releaseInfo"]
         tmdb_id = tmdb_meta.get("tmdb_id")
-        if tmdb_id and videos:
+        # Anime releases number episodes per fansub (absolute vs season), which
+        # does NOT line up with TMDB's seasons -- enriching by the parsed numbers
+        # stamps the wrong episode's title/thumbnail on them (what makes it look
+        # like the previous episode). Skip per-episode TMDB for anime and keep the
+        # release's own label; everything else enriches as before.
+        check_imdb = imdb_id if imdb_id.startswith("tt") else ""
+        if not check_imdb and tmdb_id:
+            check_imdb = await _get_imdb_id(tmdb_id, "series") or ""
+        is_anime = bool(check_imdb) and anime_mapper.is_anime_content(check_imdb, check_imdb)
+        if tmdb_id and videos and not is_anime:
             ep_results = await asyncio.gather(
                 *[_fetch_tmdb_episode(tmdb_id, v["season"], v["episode"]) for v in videos]
             )
