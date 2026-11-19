@@ -57,21 +57,25 @@ class TorrinCacheScraper(BaseScraper):
                 if not info_hash:
                     continue
                 files = result.get("files") or []
+                files = sorted(files, key=lambda f: f.get("size") or f.get("file_size") or 0, reverse=True)
                 file_index = files[0].get("index") if files else None
-                # Title with the MATCHED FILE name, not the pack name. Comet parses
-                # the title to decide whether a result contains the requested episode,
-                # and messy pack names ("...Complete TV Series, Season 1,2,3,4 S01-S04")
-                # mis-parse to episodes [1,2,3,4] and get rejected for any episode > 4.
-                # The matched file name ("...S02 E05...") parses to the right S/E and
-                # passes the scope filter (fileIndex still points to that same file).
+                # Keep the actual selected filename and stable index. The backend's
+                # episode_match carries canonical scope when release numbering differs.
                 file_name = files[0].get("file_name") if files else ""
                 title = file_name or result.get("name", "")
                 media_info = files[0].get("media_info") if files else None
                 torrents.append(
                     {
                         "title": title,
+                        "release_name": result.get("name"),
+                        "release_size": result.get("size"),
                         "infoHash": info_hash,
                         "fileIndex": file_index,
+                        "episode_match": files[0].get("episode_match") if files else None,
+                        "requested_sid": (
+                            f"{request.media_only_id}:{request.season}:{request.episode}"
+                            if request.media_type == "series" else None
+                        ),
                         # Ground-truth ffprobe metadata (resolution/codec/hdr/audio) from
                         # Torrin. Overrides the unreliable filename parse for the label.
                         "media_info": media_info,
@@ -81,7 +85,7 @@ class TorrinCacheScraper(BaseScraper):
                         # to the bottom and a non-cached duplicate from another tracker
                         # gets kept/checked instead, so the cached copy never shows ⚡).
                         "seeders": 1000,
-                        "size": int(result.get("size") or 0),
+                        "size": int((files[0].get("size") if files else None) or result.get("size") or 0),
                         "tracker": "Torrin",
                         "sources": [],
                     }
